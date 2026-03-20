@@ -1,0 +1,14 @@
+<svg width="900" height="560" viewBox="0 0 900 560" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="40" y1="70" x2="860" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14532D"/>
+      <stop offset="1" stop-color="#0F172A"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="560" rx="34" fill="url(#bg)"/>
+  <rect x="210" y="150" width="480" height="280" rx="30" fill="#DCFCE7" fill-opacity="0.22"/>
+  <rect x="268" y="202" width="364" height="186" rx="20" fill="#0B1324"/>
+  <rect x="318" y="424" width="264" height="24" rx="12" fill="#86EFAC"/>
+  <text x="64" y="78" fill="#DCFCE7" font-family="Sora, Arial, sans-serif" font-size="30" font-weight="700">Computer Studies Department</text>
+  <text x="64" y="114" fill="#BBF7D0" font-family="Manrope, Arial, sans-serif" font-size="18">Academic building for CCS classes</text>
+</svg>

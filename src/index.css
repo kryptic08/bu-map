@@ -66,6 +66,38 @@ body,
   }
 }
 
+@keyframes route-dash-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -64;
+  }
+}
+
+@keyframes route-glow-breathe {
+  0%,
+  100% {
+    stroke-opacity: 0.45;
+  }
+  50% {
+    stroke-opacity: 1;
+  }
+}
+
+.route-line-base {
+  filter: drop-shadow(0 0 4px rgba(2, 132, 199, 0.45));
+}
+
+.route-line-animated {
+  stroke-linecap: round;
+  stroke-dasharray: 18 14;
+  animation:
+    route-dash-flow 1.4s linear infinite,
+    route-glow-breathe 2.1s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.75));
+}
+
 .overlay-enter {
   animation: overlay-slide 380ms ease-out both;
 }

@@ -1,0 +1,58 @@
+<svg width="960" height="640" viewBox="0 0 960 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="40" x2="900" y2="620" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#082F49" />
+      <stop offset="1" stop-color="#0F172A" />
+    </linearGradient>
+    <linearGradient id="route" x1="180" y1="120" x2="760" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22D3EE" />
+      <stop offset="1" stop-color="#FACC15" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(730 170) rotate(90) scale(230)">
+      <stop stop-color="#34D399" stop-opacity="0.46" />
+      <stop offset="1" stop-color="#34D399" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="960" height="640" rx="40" fill="url(#bg)" />
+  <circle cx="730" cy="170" r="230" fill="url(#glow)" />
+
+  <g opacity="0.25" stroke="#7DD3FC" stroke-width="2">
+    <path d="M60 130H900" />
+    <path d="M60 230H900" />
+    <path d="M60 330H900" />
+    <path d="M60 430H900" />
+    <path d="M60 530H900" />
+    <path d="M160 70V590" />
+    <path d="M320 70V590" />
+    <path d="M480 70V590" />
+    <path d="M640 70V590" />
+    <path d="M800 70V590" />
+  </g>
+
+  <path d="M170 500C240 430 250 290 350 265C460 238 475 382 575 362C665 343 708 225 805 205" stroke="url(#route)"
+    stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
+
+  <circle cx="170" cy="500" r="22" fill="#0EA5E9" stroke="#E0F2FE" stroke-width="6" />
+  <circle cx="805" cy="205" r="22" fill="#F59E0B" stroke="#FEF3C7" stroke-width="6" />
+
+  <g>
+    <rect x="575" y="420" width="280" height="132" rx="22" fill="#0B1324" stroke="#22D3EE" stroke-opacity="0.4" />
+    <text x="601" y="456" fill="#67E8F9" font-family="Manrope, Arial, sans-serif" font-size="18" font-weight="700">Voice
+      Command</text>
+    <text x="601" y="486" fill="#E2E8F0" font-family="Manrope, Arial, sans-serif" font-size="16">Take me to BUP
+      Gym</text>
+    <rect x="601" y="506" width="120" height="24" rx="12" fill="#06B6D4" />
+    <text x="624" y="523" fill="#042F2E" font-family="Manrope, Arial, sans-serif" font-size="12"
+      font-weight="700">Listening</text>
+  </g>
+
+  <g>
+    <rect x="98" y="88" width="250" height="96" rx="20" fill="#111827" stroke="#38BDF8" stroke-opacity="0.5" />
+    <text x="124" y="125" fill="#E0F2FE" font-family="Sora, Arial, sans-serif" font-size="22" font-weight="700">BU
+      MAP</text>
+    <text x="124" y="153" fill="#BAE6FD" font-family="Manrope, Arial, sans-serif" font-size="14">Fast campus route
+      guidance</text>
+  </g>
+</svg>

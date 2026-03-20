@@ -1,0 +1,16 @@
+<svg width="900" height="560" viewBox="0 0 900 560" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="70" y1="40" x2="840" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#312E81"/>
+      <stop offset="1" stop-color="#0F172A"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="560" rx="34" fill="url(#bg)"/>
+  <rect x="200" y="168" width="500" height="230" rx="30" fill="#E0E7FF" fill-opacity="0.3"/>
+  <rect x="260" y="210" width="380" height="150" rx="18" fill="#EEF2FF"/>
+  <rect x="305" y="246" width="290" height="12" rx="6" fill="#6366F1" fill-opacity="0.7"/>
+  <rect x="305" y="272" width="220" height="12" rx="6" fill="#6366F1" fill-opacity="0.7"/>
+  <rect x="305" y="298" width="250" height="12" rx="6" fill="#6366F1" fill-opacity="0.7"/>
+  <text x="64" y="80" fill="#E0E7FF" font-family="Sora, Arial, sans-serif" font-size="34" font-weight="700">Photocopy Shop</text>
+  <text x="64" y="116" fill="#C7D2FE" font-family="Manrope, Arial, sans-serif" font-size="18">Printing and document services</text>
+</svg>

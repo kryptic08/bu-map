@@ -1,0 +1,15 @@
+<svg width="900" height="560" viewBox="0 0 900 560" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="60" y1="30" x2="840" y2="530" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E3A8A"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="560" rx="34" fill="url(#bg)"/>
+  <rect x="220" y="220" width="460" height="140" rx="28" fill="#0EA5E9" fill-opacity="0.35"/>
+  <rect x="120" y="252" width="120" height="76" rx="22" fill="#E2E8F0"/>
+  <rect x="660" y="252" width="120" height="76" rx="22" fill="#E2E8F0"/>
+  <circle cx="450" cy="290" r="46" fill="#67E8F9"/>
+  <text x="64" y="80" fill="#DBEAFE" font-family="Sora, Arial, sans-serif" font-size="34" font-weight="700">BUP Gym</text>
+  <text x="64" y="116" fill="#BFDBFE" font-family="Manrope, Arial, sans-serif" font-size="18">Sports and fitness venue</text>
+</svg>

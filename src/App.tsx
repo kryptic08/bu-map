@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import type { KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { LatLngExpression } from "leaflet";
 import QRCode from "qrcode";
+import destinationAdminImage from "./assets/destination-admin.svg";
+import destinationComputerStudiesImage from "./assets/destination-computer-studies.svg";
+import destinationFountainImage from "./assets/destination-fountain.svg";
+import destinationGymImage from "./assets/destination-gym.svg";
+import destinationPhotocopyImage from "./assets/destination-photocopy.svg";
+import welcomeRouteImage from "./assets/welcome-route.svg";
 import {
   CircleMarker,
   MapContainer,
@@ -18,13 +23,6 @@ type Point = {
 
 type Destination = Point & {
   label: string;
-};
-
-type Suggestion = {
-  place_id: number;
-  display_name: string;
-  lat: string;
-  lon: string;
 };
 
 type RouteStep = {
@@ -49,7 +47,45 @@ type RoutePacket = {
   p: "foot" | "driving";
 };
 
-type PresetDestination = Destination;
+type PresetDestination = Destination & {
+  image: string;
+  summary: string;
+  details: string[];
+  keywords: string[];
+};
+
+type EntryMode = "ai" | "quick";
+
+type VoiceRecognitionResult = {
+  transcript: string;
+};
+
+type VoiceRecognitionResultListItem = {
+  isFinal: boolean;
+  [index: number]: VoiceRecognitionResult;
+};
+
+type VoiceRecognitionEvent = {
+  resultIndex: number;
+  results: ArrayLike<VoiceRecognitionResultListItem>;
+};
+
+type VoiceRecognitionErrorEvent = {
+  error: string;
+};
+
+type VoiceRecognitionInstance = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: VoiceRecognitionEvent) => void) | null;
+  onerror: ((event: VoiceRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type VoiceRecognitionConstructor = new () => VoiceRecognitionInstance;
 
 type FocusRequest = {
   point: Point;
@@ -84,28 +120,81 @@ const PRESET_DESTINATIONS: PresetDestination[] = [
     label: "BUPC Fountain",
     lat: 13.2961752,
     lon: 123.4847694,
+    image: destinationFountainImage,
+    summary: "Central campus landmark where students usually meet before heading to classes.",
+    details: [
+      "Open public area and common meetup point",
+      "Best landmark reference for first-time visitors",
+      "Near major campus pathways and nearby services",
+    ],
+    keywords: ["fountain", "plaza", "center"],
   },
   {
     label: "BUP GYM",
     lat: 13.2959792,
     lon: 123.4844938,
+    image: destinationGymImage,
+    summary: "Sports and activity center used for PE classes, practice sessions, and events.",
+    details: [
+      "Venue for sports events and student activities",
+      "Often used for training and intramural schedules",
+      "Good destination for fitness-related stops",
+    ],
+    keywords: ["gym", "sports", "fitness"],
   },
   {
     label: "Computer Studies Department",
     lat: 13.2958673,
     lon: 123.4848151,
+    image: destinationComputerStudiesImage,
+    summary: "Academic building for computer studies classes, labs, and department offices.",
+    details: [
+      "Hosts computer and IT-related lecture rooms",
+      "Contains labs for practical sessions",
+      "Department office and student consultation area",
+    ],
+    keywords: ["computer", "it", "ccs", "department"],
   },
   {
     label: "Administrative Building",
     lat: 13.2957586,
     lon: 123.4851484,
+    image: destinationAdminImage,
+    summary: "Main administration area for registrar and essential student services.",
+    details: [
+      "Common stop for enrollment and records processing",
+      "Includes several student-facing service windows",
+      "Helpful destination for official campus transactions",
+    ],
+    keywords: ["admin", "administration", "office", "registrar"],
   },
   {
     label: "Photocopy shop",
     lat: 13.2962074,
     lon: 123.4859508,
+    image: destinationPhotocopyImage,
+    summary: "Quick print and photocopy service point for class handouts and documents.",
+    details: [
+      "Fast printing and copying for school requirements",
+      "Useful stop before classes and submissions",
+      "Easy to access from nearby academic buildings",
+    ],
+    keywords: ["photocopy", "copy", "print", "xerox"],
   },
 ];
+
+function getVoiceRecognitionConstructor(): VoiceRecognitionConstructor | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const voiceWindow = window as Window & {
+    SpeechRecognition?: VoiceRecognitionConstructor;
+    webkitSpeechRecognition?: VoiceRecognitionConstructor;
+  };
+
+  return voiceWindow.SpeechRecognition ?? voiceWindow.webkitSpeechRecognition ?? null;
+}
 
 const PUBLIC_BASE_URL = (import.meta.env.VITE_PUBLIC_BASE_URL ?? "").trim();
 
@@ -129,6 +218,66 @@ function formatDuration(seconds: number) {
 function compactLabel(label: string) {
   const [first, second] = label.split(",");
   return second ? `${first.trim()}, ${second.trim()}` : first.trim();
+}
+
+function normalizeText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
+}
+
+function resolvePresetFromPrompt(prompt: string): PresetDestination | null {
+  const normalizedPrompt = normalizeText(prompt);
+  if (!normalizedPrompt) {
+    return null;
+  }
+
+  const promptTokens = normalizedPrompt
+    .split(/\s+/)
+    .filter((token) => token.length > 1);
+
+  if (promptTokens.length === 0) {
+    return null;
+  }
+
+  let bestMatch: { place: PresetDestination; score: number } | null = null;
+
+  for (const place of PRESET_DESTINATIONS) {
+    const searchableText = normalizeText(
+      `${place.label} ${place.keywords.join(" ")}`,
+    );
+    let score = 0;
+
+    for (const token of promptTokens) {
+      if (searchableText.includes(token)) {
+        score += 1;
+      }
+    }
+
+    if (!bestMatch || score > bestMatch.score) {
+      bestMatch = { place, score };
+    }
+  }
+
+  if (!bestMatch || bestMatch.score === 0) {
+    return null;
+  }
+
+  return bestMatch.place;
+}
+
+function resolvePresetFromDestination(
+  destination: Destination | null,
+): PresetDestination | null {
+  if (!destination) {
+    return null;
+  }
+
+  return (
+    PRESET_DESTINATIONS.find(
+      (preset) =>
+        Math.abs(preset.lat - destination.lat) < 0.000001 &&
+        Math.abs(preset.lon - destination.lon) < 0.000001,
+    ) ?? null
+  );
 }
 
 function buildInstruction(step: OsrmStep) {
@@ -300,16 +449,8 @@ function SimulationFollowController({
 }
 
 function App() {
-  const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
   const [destination, setDestination] = useState<Destination | null>(null);
-
-  const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
 
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
@@ -327,6 +468,13 @@ function App() {
   const [showQrModal, setShowQrModal] = useState(false);
   const [gyroEnabled, setGyroEnabled] = useState(false);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(true);
+  const [entryMode, setEntryMode] = useState<EntryMode | null>(null);
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [showDestinationDetails, setShowDestinationDetails] = useState(false);
+  const [showDestinationListModal, setShowDestinationListModal] =
+    useState(false);
+  const voiceRecognitionRef = useRef<VoiceRecognitionInstance | null>(null);
 
   const isShareLinkPublic = useMemo(() => {
     if (PUBLIC_BASE_URL) {
@@ -338,6 +486,15 @@ function App() {
   }, []);
 
   const startPoint = currentStartPoint;
+  const activeEntryMode = entryMode ?? "quick";
+  const voiceRecognitionSupported = useMemo(
+    () => getVoiceRecognitionConstructor() !== null,
+    [],
+  );
+  const selectedPresetDestination = useMemo(
+    () => resolvePresetFromDestination(destination),
+    [destination],
+  );
 
   const simulationPoint = useMemo<Point | null>(() => {
     if (!route || simulationIndex === null) {
@@ -402,13 +559,124 @@ function App() {
 
   const applyDestination = (nextDestination: Destination) => {
     setDestination(nextDestination);
-    setQuery(compactLabel(nextDestination.label));
-    setSuggestions([]);
-    setSelectedIndex(-1);
-    setFocusRequest({ point: nextDestination, zoom: 16 });
+    setShowDestinationDetails(true);
+    setLocationError(null);
+    setFocusRequest({ point: nextDestination, zoom: 17 });
     setSimulationIndex(null);
     setIsSimulationPaused(false);
     setShowNextStopPrompt(false);
+  };
+
+  const stopVoiceRecognition = () => {
+    if (voiceRecognitionRef.current) {
+      voiceRecognitionRef.current.stop();
+      voiceRecognitionRef.current = null;
+    }
+    setIsVoiceListening(false);
+  };
+
+  const runAiVoiceCommand = (rawCommand: string) => {
+    const command = rawCommand.trim();
+    if (!command) {
+      setLocationError("Voice command did not capture a destination.");
+      return;
+    }
+
+    const matchedPreset = resolvePresetFromPrompt(command);
+    if (matchedPreset) {
+      applyDestination(matchedPreset);
+      setLocationError(null);
+      return;
+    }
+
+    setLocationError(
+      "Voice command recognized, but no preset destination was matched.",
+    );
+  };
+
+  const onChooseEntryMode = (mode: EntryMode) => {
+    setEntryMode(mode);
+    setShowWelcomeModal(false);
+    setLocationError(null);
+    setShowDestinationListModal(mode === "quick");
+
+    if (mode !== "ai") {
+      stopVoiceRecognition();
+    }
+
+    if (mode === "quick") {
+      setShowDestinationDetails(false);
+    }
+  };
+
+  const onToggleVoiceCommand = () => {
+    if (isVoiceListening) {
+      stopVoiceRecognition();
+      return;
+    }
+
+    const RecognitionConstructor = getVoiceRecognitionConstructor();
+    if (!RecognitionConstructor) {
+      setLocationError(
+        "Voice command is not supported in this browser. Use quick destination mode.",
+      );
+      return;
+    }
+
+    const recognition = new RecognitionConstructor();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event) => {
+      let finalTranscript = "";
+      let interimTranscript = "";
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const primaryAlternative = result?.[0];
+        if (!primaryAlternative?.transcript) {
+          continue;
+        }
+
+        if (result.isFinal) {
+          finalTranscript += `${primaryAlternative.transcript} `;
+        } else {
+          interimTranscript += `${primaryAlternative.transcript} `;
+        }
+      }
+
+      const polishedInterim = interimTranscript.trim();
+      void polishedInterim;
+
+      const polishedFinal = finalTranscript.trim();
+      if (polishedFinal) {
+        runAiVoiceCommand(polishedFinal);
+        stopVoiceRecognition();
+      }
+    };
+
+    recognition.onerror = (event) => {
+      const message =
+        event.error === "not-allowed"
+          ? "Microphone permission denied for voice command."
+          : event.error === "no-speech"
+            ? "No speech detected. Try speaking clearly."
+            : "Voice command failed. Please try again.";
+
+      setLocationError(message);
+      stopVoiceRecognition();
+    };
+
+    recognition.onend = () => {
+      setIsVoiceListening(false);
+      voiceRecognitionRef.current = null;
+    };
+
+    setLocationError(null);
+    setIsVoiceListening(true);
+    voiceRecognitionRef.current = recognition;
+    recognition.start();
   };
 
   useEffect(() => {
@@ -462,66 +730,24 @@ function App() {
       setCurrentStartPoint(startFromPacket);
       setStartLabel(packet.sl || "Shared Start");
       setDestination(destinationFromPacket);
-      setQuery(packet.dl);
       setRoute(null);
-      setFocusRequest({ point: startFromPacket, zoom: 18 });
+      setFocusRequest({ point: startFromPacket, zoom: 19 });
       setRouteError(null);
+      setEntryMode("quick");
+      setShowWelcomeModal(false);
     } catch {
       setRouteError("Shared route packet is invalid or unsupported.");
     }
   }, []);
 
   useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed.length < 3) {
-      setSuggestions([]);
-      setSearchError(null);
-      setSearchLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    setSearchLoading(true);
-    setSearchError(null);
-
-    const timer = window.setTimeout(async () => {
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(trimmed)}`,
-          {
-            signal: controller.signal,
-            headers: {
-              "Accept-Language": "en",
-            },
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to load destination suggestions.");
-        }
-
-        const result = (await response.json()) as Suggestion[];
-        setSuggestions(result);
-        setSelectedIndex(result.length > 0 ? 0 : -1);
-      } catch {
-        if (controller.signal.aborted) {
-          return;
-        }
-        setSearchError("Could not search places right now.");
-        setSuggestions([]);
-        setSelectedIndex(-1);
-      } finally {
-        if (!controller.signal.aborted) {
-          setSearchLoading(false);
-        }
-      }
-    }, 420);
-
     return () => {
-      window.clearTimeout(timer);
-      controller.abort();
+      if (voiceRecognitionRef.current) {
+        voiceRecognitionRef.current.stop();
+        voiceRecognitionRef.current = null;
+      }
     };
-  }, [query]);
+  }, []);
 
   useEffect(() => {
     if (!destination) {
@@ -531,6 +757,7 @@ function App() {
       setQrCodeDataUrl(null);
       setShareLink(null);
       setShowQrModal(false);
+      setShowDestinationDetails(false);
       setSimulationIndex(null);
       setIsSimulationPaused(false);
       setShowNextStopPrompt(false);
@@ -697,60 +924,35 @@ function App() {
     if (locationError) {
       return locationError;
     }
-    if (searchError) {
-      return searchError;
-    }
     if (routeError) {
       return routeError;
     }
     return null;
-  }, [locationError, searchError, routeError]);
-
-  const onSelectSuggestion = (item: Suggestion) => {
-    const nextDestination: Destination = {
-      lat: Number(item.lat),
-      lon: Number(item.lon),
-      label: item.display_name,
-    };
-    applyDestination(nextDestination);
-  };
+  }, [locationError, routeError]);
 
   const onSelectPresetDestination = (place: PresetDestination) => {
     applyDestination(place);
+    setShowDestinationListModal(false);
   };
 
-  const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (suggestions.length === 0) {
-      return;
-    }
+  const onToggleDestinationDetails = () => {
+    setShowDestinationDetails((previous) => !previous);
+  };
 
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setSelectedIndex((prev) => (prev + 1) % suggestions.length);
-      return;
-    }
+  const onOpenDestinationListModal = () => {
+    setShowDestinationListModal(true);
+  };
 
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setSelectedIndex(
-        (prev) => (prev - 1 + suggestions.length) % suggestions.length,
-      );
-      return;
-    }
-
-    if (event.key === "Enter" && selectedIndex >= 0) {
-      event.preventDefault();
-      onSelectSuggestion(suggestions[selectedIndex]);
-    }
+  const onCloseDestinationListModal = () => {
+    setShowDestinationListModal(false);
   };
 
   const onClearRoute = () => {
     setDestination(null);
     setRoute(null);
     setRouteError(null);
-    setSuggestions([]);
-    setSelectedIndex(-1);
-    setQuery("");
+    setShowDestinationListModal(false);
+    setShowDestinationDetails(false);
     setSimulationIndex(null);
     setIsSimulationPaused(false);
     setShowNextStopPrompt(false);
@@ -771,7 +973,7 @@ function App() {
         lat: route.points[0][0],
         lon: route.points[0][1],
       },
-      zoom: 18,
+      zoom: 19,
     });
   };
 
@@ -788,12 +990,16 @@ function App() {
     setShowNextStopPrompt(false);
     setGyroEnabled(false);
     setDeviceHeading(null);
-    setFocusRequest({ point: startPoint, zoom: 17 });
+    setFocusRequest({ point: startPoint, zoom: 18 });
   };
 
   const onChooseNextDestination = () => {
     setShowNextStopPrompt(false);
     onClearRoute();
+
+    if (activeEntryMode === "quick") {
+      setShowDestinationListModal(true);
+    }
   };
 
   const onCopyShareLink = async () => {
@@ -858,37 +1064,12 @@ function App() {
     setLocationError(null);
   };
 
-  const onLocateMe = () => {
-    if (!navigator.geolocation) {
-      setLocationError("Geolocation is not available in this browser.");
-      return;
-    }
-
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nextPoint = {
-          lat: position.coords.latitude,
-          lon: position.coords.longitude,
-        };
-        setFocusRequest({ point: nextPoint, zoom: 17 });
-        setLocationError(null);
-        setLocating(false);
-      },
-      () => {
-        setLocationError("Could not refresh your location.");
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  };
-
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-slate-100 font-[Manrope] text-slate-900">
       <MapContainer
         className="h-full w-full"
         center={MAP_CENTER}
-        zoom={18}
+        zoom={19}
         scrollWheelZoom
       >
         <TileLayer
@@ -936,10 +1117,27 @@ function App() {
         ) : null}
 
         {route ? (
-          <Polyline
-            positions={route.points}
-            pathOptions={{ color: "#0284c7", weight: 7, opacity: 0.9 }}
-          />
+          <>
+            <Polyline
+              positions={route.points}
+              pathOptions={{
+                color: "#0284c7",
+                weight: 7,
+                opacity: 0.9,
+                className: "route-line-base",
+              }}
+            />
+            <Polyline
+              positions={route.points}
+              pathOptions={{
+                color: "#67e8f9",
+                weight: 4,
+                opacity: 0.95,
+                dashArray: "18 14",
+                className: "route-line-animated",
+              }}
+            />
+          </>
         ) : null}
 
         {simulationPoint ? (
@@ -959,6 +1157,90 @@ function App() {
         ) : null}
       </MapContainer>
 
+      {showWelcomeModal ? (
+        <section className="pointer-events-none absolute inset-0 z-[1000] flex items-center justify-center bg-slate-950/70 px-4 py-6">
+          <div className="pointer-events-auto relative w-full max-w-5xl overflow-hidden rounded-4xl border border-cyan-100/70 bg-white shadow-[0_38px_120px_-45px_rgba(15,23,42,0.95)]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.2),transparent_52%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.24),transparent_45%)]" />
+            <div className="relative grid gap-6 p-6 md:grid-cols-[1.1fr_0.9fr] md:p-8">
+              <div className="space-y-4">
+                <p className="font-[Sora] text-3xl font-semibold leading-tight text-slate-900 md:text-4xl">
+                  Welcome to BU Map Navigator
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700 md:text-base">
+                  Plan your path across campus in seconds. Choose AI voice
+                  command if you want hands-free guidance, or jump straight to
+                  quick destinations for one-tap routing.
+                </p>
+
+                <div className="rounded-2xl border border-cyan-200/80 bg-cyan-50/80 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
+                    How this works
+                  </p>
+                  <p className="mt-2 text-sm text-cyan-900">
+                    1. Pick your navigation style below.
+                  </p>
+                  <p className="text-sm text-cyan-900">
+                    2. Say a destination like "Take me to BUP Gym" or choose a
+                    quick campus stop.
+                  </p>
+                  <p className="text-sm text-cyan-900">
+                    3. Follow the route and live turn-by-turn instructions.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => onChooseEntryMode("ai")}
+                    className="rounded-2xl border border-cyan-300 bg-linear-to-br from-cyan-500 to-sky-600 p-4 text-left text-white shadow-lg transition hover:-translate-y-px hover:from-cyan-400 hover:to-sky-500"
+                  >
+                    <p className="text-base font-semibold">AI Voice Command</p>
+                    <p className="mt-1 text-xs leading-relaxed text-cyan-50">
+                      Speak naturally and let AI match your destination.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onChooseEntryMode("quick")}
+                    className="rounded-2xl border border-slate-300 bg-white p-4 text-left shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    <p className="text-base font-semibold text-slate-900">
+                      Quick Destination
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                      Pick from your most-used campus points instantly.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col">
+                <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-slate-900">
+                  <img
+                    src={welcomeRouteImage}
+                    alt="Illustration of campus route guidance"
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-slate-950/75 p-3 text-slate-100 backdrop-blur-sm">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">
+                      Voice example
+                    </p>
+                    <p className="mt-1 text-sm font-medium leading-relaxed">
+                      "Take me to the Administrative Building"
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-slate-600 md:text-sm">
+                  BU Map is optimized for mobile and desktop, so you can start
+                  from the guard house and navigate confidently around campus.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {showTopDirectionBanner && currentStep ? (
         <section className="pointer-events-none absolute inset-x-0 top-3 z-[920] mx-auto w-[min(94vw,760px)] overlay-enter">
           <div className="pointer-events-auto rounded-2xl bg-[#1a73e8] px-4 py-3 text-white shadow-2xl">
@@ -976,35 +1258,28 @@ function App() {
         </section>
       ) : null}
 
-      <section
-        className={`pointer-events-none absolute inset-x-0 z-[900] mx-auto w-[min(92vw,720px)] overlay-enter ${showTopDirectionBanner ? "top-24" : "top-4"}`}
-      >
-        <div className="pointer-events-auto rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur-sm">
-          <div className="flex items-center gap-2">
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={onSearchKeyDown}
-              placeholder="Where do you want to go?"
-              aria-label="Search destination"
-              className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-[15px] text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={onLocateMe}
-              aria-label="Locate me"
-              className="h-12 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
-              disabled={locating}
-            >
-              {locating ? "Locating" : "Locate"}
-            </button>
-          </div>
+      {showDestinationListModal ? (
+        <section className="pointer-events-none absolute inset-0 z-[970] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="pointer-events-auto w-full max-w-xl rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-[Sora] text-lg font-semibold text-slate-900">
+                  Destination List
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Select a destination to generate your route.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onCloseDestinationListModal}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                Close
+              </button>
+            </div>
 
-          <div className="mt-2">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              Quick destinations
-            </p>
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="route-panel-scroll mt-3 grid max-h-[52vh] gap-2 overflow-y-auto pr-1">
               {PRESET_DESTINATIONS.map((place) => {
                 const active =
                   destination &&
@@ -1016,45 +1291,107 @@ function App() {
                     key={place.label}
                     type="button"
                     onClick={() => onSelectPresetDestination(place)}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    className={`rounded-xl border px-3 py-2 text-left transition ${
                       active
                         ? "border-blue-500 bg-blue-600 text-white"
-                        : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200"
+                        : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                     }`}
                   >
-                    {place.label}
+                    <p className="text-sm font-semibold">{place.label}</p>
+                    <p
+                      className={`mt-0.5 text-xs ${
+                        active ? "text-blue-100" : "text-slate-500"
+                      }`}
+                    >
+                      {place.summary}
+                    </p>
                   </button>
                 );
               })}
             </div>
           </div>
+        </section>
+      ) : null}
 
-          {searchLoading ? (
-            <p className="mt-2 text-xs text-slate-600">Searching places...</p>
-          ) : null}
+      {destination ? (
+        <section
+          className={`pointer-events-none absolute left-4 right-4 z-[900] w-auto overlay-enter md:right-auto md:w-[340px] ${showTopDirectionBanner ? "top-24" : "top-4"}`}
+        >
+          <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Destination preview
+            </p>
+            <img
+              src={selectedPresetDestination?.image ?? welcomeRouteImage}
+              alt={`${compactLabel(destination.label)} preview`}
+              className="mt-2 h-36 w-full rounded-lg border border-slate-200 object-cover"
+            />
+            <p className="mt-2 text-sm font-semibold text-slate-900">
+              {compactLabel(destination.label)}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+              {selectedPresetDestination?.summary ??
+                "Destination loaded from a shared route. Choose a quick destination to view local details."}
+            </p>
 
-          {suggestions.length > 0 ? (
-            <ul className="mt-3 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white">
-              {suggestions.map((item, index) => (
-                <li key={item.place_id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelectSuggestion(item)}
-                    className={`w-full border-b border-slate-200 px-4 py-3 text-left text-sm text-slate-800 transition last:border-b-0 ${selectedIndex === index ? "bg-blue-50" : "hover:bg-slate-50"}`}
-                  >
-                    {compactLabel(item.display_name)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      </section>
+            <button
+              type="button"
+              onClick={onToggleDestinationDetails}
+              className="mt-2 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+            >
+              {showDestinationDetails ? "Hide details" : "View details"}
+            </button>
+
+            {showDestinationDetails ? (
+              <ul className="mt-2 space-y-1.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-700">
+                {(selectedPresetDestination?.details ?? [
+                  "Detailed profile is currently unavailable for this shared destination.",
+                  "Select a quick destination from the list to load full local details.",
+                ]).map((detail) => (
+                  <li key={detail} className="flex gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-500" />
+                    <span>{detail}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       <aside className="pointer-events-none absolute right-4 bottom-6 z-[900] flex flex-col gap-3 md:right-[404px]">
+        {activeEntryMode === "quick" ? (
+          <button
+            type="button"
+            onClick={onOpenDestinationListModal}
+            className="pointer-events-auto h-12 rounded-full border border-blue-300 bg-blue-600 px-4 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-500"
+          >
+            Destination list
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onToggleVoiceCommand}
+            disabled={!voiceRecognitionSupported}
+            className="pointer-events-auto h-12 rounded-full border border-cyan-300 bg-cyan-600 px-4 text-sm font-semibold text-white shadow-lg transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isVoiceListening ? "Stop voice" : "Start voice"}
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => setFocusRequest({ point: startPoint, zoom: 17 })}
+          onClick={() => {
+            stopVoiceRecognition();
+            setShowDestinationListModal(false);
+            setShowWelcomeModal(true);
+          }}
+          className="pointer-events-auto h-12 rounded-full border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 shadow-lg transition hover:bg-slate-100"
+        >
+          Change mode
+        </button>
+        <button
+          type="button"
+          onClick={() => setFocusRequest({ point: startPoint, zoom: 18 })}
           className="pointer-events-auto h-12 rounded-full border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 shadow-lg transition hover:bg-slate-100"
         >
           Recenter
