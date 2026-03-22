@@ -44,6 +44,22 @@ body,
   scrollbar-width: thin;
 }
 
+.building-pin-icon {
+  background: transparent;
+  border: 0;
+}
+
+.building-pin-inner {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  color: #2563eb;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+}
+
 @keyframes overlay-slide {
   from {
     opacity: 0;

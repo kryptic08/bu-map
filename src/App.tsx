@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { LatLngExpression } from "leaflet";
+import { divIcon, type LatLngExpression } from "leaflet";
+import { MapPin, Loader2, Clock, Zap, CheckCircle2 } from "lucide-react";
 import QRCode from "qrcode";
+import { renderToStaticMarkup } from "react-dom/server";
 import destinationAdminImage from "./assets/destination-admin.svg";
 import destinationComputerStudiesImage from "./assets/destination-computer-studies.svg";
 import destinationFountainImage from "./assets/destination-fountain.svg";
 import destinationGymImage from "./assets/destination-gym.svg";
-import destinationPhotocopyImage from "./assets/destination-photocopy.svg";
 import welcomeRouteImage from "./assets/welcome-route.svg";
 import {
   CircleMarker,
   MapContainer,
+  Marker,
   Polyline,
   TileLayer,
   Tooltip,
@@ -121,7 +123,8 @@ const PRESET_DESTINATIONS: PresetDestination[] = [
     lat: 13.2961752,
     lon: 123.4847694,
     image: destinationFountainImage,
-    summary: "Central campus landmark where students usually meet before heading to classes.",
+    summary:
+      "Central campus landmark where students usually meet before heading to classes.",
     details: [
       "Open public area and common meetup point",
       "Best landmark reference for first-time visitors",
@@ -134,7 +137,8 @@ const PRESET_DESTINATIONS: PresetDestination[] = [
     lat: 13.2959792,
     lon: 123.4844938,
     image: destinationGymImage,
-    summary: "Sports and activity center used for PE classes, practice sessions, and events.",
+    summary:
+      "Sports and activity center used for PE classes, practice sessions, and events.",
     details: [
       "Venue for sports events and student activities",
       "Often used for training and intramural schedules",
@@ -147,7 +151,8 @@ const PRESET_DESTINATIONS: PresetDestination[] = [
     lat: 13.2958673,
     lon: 123.4848151,
     image: destinationComputerStudiesImage,
-    summary: "Academic building for computer studies classes, labs, and department offices.",
+    summary:
+      "Academic building for computer studies classes, labs, and department offices.",
     details: [
       "Hosts computer and IT-related lecture rooms",
       "Contains labs for practical sessions",
@@ -160,7 +165,8 @@ const PRESET_DESTINATIONS: PresetDestination[] = [
     lat: 13.2957586,
     lon: 123.4851484,
     image: destinationAdminImage,
-    summary: "Main administration area for registrar and essential student services.",
+    summary:
+      "Main administration area for registrar and essential student services.",
     details: [
       "Common stop for enrollment and records processing",
       "Includes several student-facing service windows",
@@ -169,17 +175,32 @@ const PRESET_DESTINATIONS: PresetDestination[] = [
     keywords: ["admin", "administration", "office", "registrar"],
   },
   {
-    label: "Photocopy shop",
-    lat: 13.2962074,
-    lon: 123.4859508,
-    image: destinationPhotocopyImage,
-    summary: "Quick print and photocopy service point for class handouts and documents.",
+    label: "Nursing Department",
+    lat: 13.296606,
+    lon: 123.484725,
+    image: destinationAdminImage,
+    summary:
+      "Academic area for nursing classes, department transactions, and student support.",
     details: [
-      "Fast printing and copying for school requirements",
-      "Useful stop before classes and submissions",
-      "Easy to access from nearby academic buildings",
+      "Main location for nursing program classrooms and offices",
+      "Department inquiries and student coordination happen here",
+      "Accessible from the central campus roads and pathways",
     ],
-    keywords: ["photocopy", "copy", "print", "xerox"],
+    keywords: ["nursing", "department", "college of nursing", "cn"],
+  },
+  {
+    label: "Salceda Building",
+    lat: 13.296187,
+    lon: 123.48553,
+    image: destinationComputerStudiesImage,
+    summary:
+      "Campus building near the central inner roads and common walking routes.",
+    details: [
+      "Landmark destination close to the internal roundabout",
+      "Frequently passed when moving between major facilities",
+      "Useful waypoint for navigation within the campus core",
+    ],
+    keywords: ["salceda", "salceda building", "building", "sb"],
   },
 ];
 
@@ -193,7 +214,9 @@ function getVoiceRecognitionConstructor(): VoiceRecognitionConstructor | null {
     webkitSpeechRecognition?: VoiceRecognitionConstructor;
   };
 
-  return voiceWindow.SpeechRecognition ?? voiceWindow.webkitSpeechRecognition ?? null;
+  return (
+    voiceWindow.SpeechRecognition ?? voiceWindow.webkitSpeechRecognition ?? null
+  );
 }
 
 const PUBLIC_BASE_URL = (import.meta.env.VITE_PUBLIC_BASE_URL ?? "").trim();
@@ -221,7 +244,10 @@ function compactLabel(label: string) {
 }
 
 function normalizeText(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .trim();
 }
 
 function resolvePresetFromPrompt(prompt: string): PresetDestination | null {
@@ -308,6 +334,126 @@ function buildInstruction(step: OsrmStep) {
   }
 
   return `Continue ${modifier ?? "ahead"}${road}${distanceText}`;
+}
+
+function sampleCoordinateAt(
+  coordinates: [number, number][],
+  ratio: number,
+): [number, number] {
+  if (coordinates.length === 0) {
+    return [0, 0];
+  }
+
+  if (coordinates.length === 1) {
+    return coordinates[0];
+  }
+
+  const index = Math.min(
+    coordinates.length - 1,
+    Math.max(0, Math.round((coordinates.length - 1) * ratio)),
+  );
+  return coordinates[index];
+}
+
+function distanceMeters(a: [number, number], b: [number, number]) {
+  const lon1 = (a[0] * Math.PI) / 180;
+  const lat1 = (a[1] * Math.PI) / 180;
+  const lon2 = (b[0] * Math.PI) / 180;
+  const lat2 = (b[1] * Math.PI) / 180;
+  const x = (lon2 - lon1) * Math.cos((lat1 + lat2) / 2);
+  const y = lat2 - lat1;
+  return Math.sqrt(x * x + y * y) * 6371000;
+}
+
+function pointDistanceMeters(a: Point, b: Point) {
+  return distanceMeters([a.lon, a.lat], [b.lon, b.lat]);
+}
+
+function pointToSegmentDistanceMeters(point: Point, start: Point, end: Point) {
+  const refLat = ((start.lat + end.lat) * Math.PI) / 360;
+  const metersPerDegLat = 111320;
+  const metersPerDegLon = 111320 * Math.cos(refLat);
+
+  const sx = start.lon * metersPerDegLon;
+  const sy = start.lat * metersPerDegLat;
+  const ex = end.lon * metersPerDegLon;
+  const ey = end.lat * metersPerDegLat;
+  const px = point.lon * metersPerDegLon;
+  const py = point.lat * metersPerDegLat;
+
+  const dx = ex - sx;
+  const dy = ey - sy;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared <= 0.000001) {
+    const ddx = px - sx;
+    const ddy = py - sy;
+    return Math.sqrt(ddx * ddx + ddy * ddy);
+  }
+
+  const t = Math.max(
+    0,
+    Math.min(1, ((px - sx) * dx + (py - sy) * dy) / lengthSquared),
+  );
+  const cx = sx + t * dx;
+  const cy = sy + t * dy;
+  const ddx = px - cx;
+  const ddy = py - cy;
+  return Math.sqrt(ddx * ddx + ddy * ddy);
+}
+
+function routeShapeDifferenceMeters(first: OsrmRoute, second: OsrmRoute) {
+  const firstCoords = first.geometry.coordinates;
+  const secondCoords = second.geometry.coordinates;
+
+  if (firstCoords.length === 0 || secondCoords.length === 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const sampleCount = 24;
+  let total = 0;
+  let max = 0;
+
+  for (let i = 0; i <= sampleCount; i += 1) {
+    const ratio = i / sampleCount;
+    const firstPoint = sampleCoordinateAt(firstCoords, ratio);
+    const secondPoint = sampleCoordinateAt(secondCoords, ratio);
+    const delta = distanceMeters(firstPoint, secondPoint);
+    total += delta;
+    if (delta > max) {
+      max = delta;
+    }
+  }
+
+  return Math.max(total / (sampleCount + 1), max * 0.6);
+}
+
+function areRoutesTooSimilar(first: OsrmRoute, second: OsrmRoute) {
+  const durationGap = Math.abs(first.duration - second.duration);
+  const distanceGap = Math.abs(first.distance - second.distance);
+  const shapeGapMeters = routeShapeDifferenceMeters(first, second);
+
+  return shapeGapMeters < 18 && durationGap < 20 && distanceGap < 35;
+}
+
+function toRouteInfo(route: OsrmRoute, profile: "foot" | "driving"): RouteInfo {
+  const points: [number, number][] = route.geometry.coordinates.map(
+    ([lon, lat]) => [lat, lon],
+  );
+  const steps = route.legs.flatMap((leg) =>
+    leg.steps.map((step) => ({
+      instruction: buildInstruction(step),
+      distance: step.distance,
+    })),
+  );
+
+  return {
+    distance: route.distance,
+    duration: route.duration,
+    profile,
+    points,
+    steps,
+  };
 }
 
 function clampPrecision(value: number) {
@@ -453,13 +599,20 @@ function App() {
   const [locationError, setLocationError] = useState<string | null>(null);
 
   const [route, setRoute] = useState<RouteInfo | null>(null);
+  const [alternativeRoute, setAlternativeRoute] = useState<RouteInfo | null>(
+    null,
+  );
+  const [isUsingAlternativeRoute, setIsUsingAlternativeRoute] = useState(false);
+  const [showAlternativeRoute, setShowAlternativeRoute] = useState(true);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
 
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [simulationIndex, setSimulationIndex] = useState<number | null>(null);
+  const [simulationSpeed, setSimulationSpeed] = useState(1.25);
   const [isSimulationPaused, setIsSimulationPaused] = useState(false);
   const [showNextStopPrompt, setShowNextStopPrompt] = useState(false);
+  const [hasArrivedAtDestination, setHasArrivedAtDestination] = useState(false);
   const [currentStartPoint, setCurrentStartPoint] =
     useState<Point>(GUARD_HOUSE);
   const [startLabel, setStartLabel] = useState("Guard House");
@@ -501,15 +654,21 @@ function App() {
       return null;
     }
 
-    const boundedIndex = Math.min(simulationIndex, route.points.length - 1);
-    const point = route.points[boundedIndex];
-    if (!point) {
+    const maxIndex = route.points.length - 1;
+    const boundedIndex = Math.max(0, Math.min(simulationIndex, maxIndex));
+    const baseIndex = Math.floor(boundedIndex);
+    const nextIndex = Math.min(baseIndex + 1, maxIndex);
+    const blend = boundedIndex - baseIndex;
+    const from = route.points[baseIndex];
+    const to = route.points[nextIndex];
+
+    if (!from || !to) {
       return null;
     }
 
     return {
-      lat: point[0],
-      lon: point[1],
+      lat: from[0] + (to[0] - from[0]) * blend,
+      lon: from[1] + (to[1] - from[1]) * blend,
     };
   }, [route, simulationIndex]);
 
@@ -517,7 +676,11 @@ function App() {
   const canSimulate = Boolean(route && route.points.length > 1);
   const simulationProgress =
     route && simulationIndex !== null && route.points.length > 1
-      ? Math.round((simulationIndex / (route.points.length - 1)) * 100)
+      ? Math.round(
+          (Math.max(0, Math.min(simulationIndex, route.points.length - 1)) /
+            (route.points.length - 1)) *
+            100,
+        )
       : 0;
 
   const headingDegrees = useMemo(() => {
@@ -525,9 +688,12 @@ function App() {
       return 0;
     }
 
-    const current = route.points[simulationIndex];
-    const next =
-      route.points[Math.min(simulationIndex + 1, route.points.length - 1)];
+    const maxIndex = route.points.length - 1;
+    const baseIndex = Math.floor(
+      Math.max(0, Math.min(simulationIndex, maxIndex)),
+    );
+    const current = route.points[baseIndex];
+    const next = route.points[Math.min(baseIndex + 1, maxIndex)];
     if (!current || !next) {
       return 0;
     }
@@ -557,14 +723,34 @@ function App() {
 
   const showTopDirectionBanner = isSimulationRunning && currentStep !== null;
 
+  const buildingPinIcon = useMemo(
+    () =>
+      divIcon({
+        html: renderToStaticMarkup(
+          <span className="building-pin-inner" aria-hidden="true">
+            <MapPin size={16} strokeWidth={2.6} />
+          </span>,
+        ),
+        className: "building-pin-icon",
+        iconSize: [24, 24],
+        iconAnchor: [12, 20],
+        tooltipAnchor: [0, -16],
+      }),
+    [],
+  );
+
   const applyDestination = (nextDestination: Destination) => {
     setDestination(nextDestination);
+    setAlternativeRoute(null);
+    setIsUsingAlternativeRoute(false);
+    setShowAlternativeRoute(true);
     setShowDestinationDetails(true);
     setLocationError(null);
     setFocusRequest({ point: nextDestination, zoom: 17 });
     setSimulationIndex(null);
     setIsSimulationPaused(false);
     setShowNextStopPrompt(false);
+    setHasArrivedAtDestination(false);
   };
 
   const stopVoiceRecognition = () => {
@@ -632,7 +818,11 @@ function App() {
       let finalTranscript = "";
       let interimTranscript = "";
 
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      for (
+        let index = event.resultIndex;
+        index < event.results.length;
+        index += 1
+      ) {
         const result = event.results[index];
         const primaryAlternative = result?.[0];
         if (!primaryAlternative?.transcript) {
@@ -752,6 +942,9 @@ function App() {
   useEffect(() => {
     if (!destination) {
       setRoute(null);
+      setAlternativeRoute(null);
+      setIsUsingAlternativeRoute(false);
+      setShowAlternativeRoute(true);
       setRouteError(null);
       setRouteLoading(false);
       setQrCodeDataUrl(null);
@@ -761,6 +954,7 @@ function App() {
       setSimulationIndex(null);
       setIsSimulationPaused(false);
       setShowNextStopPrompt(false);
+      setHasArrivedAtDestination(false);
       return;
     }
 
@@ -770,57 +964,124 @@ function App() {
 
     const fetchRoute = async () => {
       try {
-        let firstRoute: OsrmRoute | undefined;
-        let selectedProfile: "foot" | "driving" = "driving";
+        const requestRoutes = async (
+          profile: "foot" | "driving",
+          via?: Point,
+        ) => {
+          const waypointSection = via
+            ? `${startPoint.lon},${startPoint.lat};${via.lon},${via.lat};${destination.lon},${destination.lat}`
+            : `${startPoint.lon},${startPoint.lat};${destination.lon},${destination.lat}`;
 
-        for (const profile of ["foot", "driving"] as const) {
-          const response = await fetch(
-            `https://router.project-osrm.org/route/v1/${profile}/${startPoint.lon},${startPoint.lat};${destination.lon},${destination.lat}?overview=full&geometries=geojson&steps=true`,
-            { signal: controller.signal },
-          );
+          const alternativesQuery = via ? "false" : "3";
 
-          if (!response.ok) {
-            continue;
+          try {
+            const response = await fetch(
+              `https://router.project-osrm.org/route/v1/${profile}/${waypointSection}?overview=full&geometries=geojson&steps=true&alternatives=${alternativesQuery}`,
+              { signal: controller.signal },
+            );
+
+            if (!response.ok) {
+              return [] as Array<{
+                profile: "foot" | "driving";
+                route: OsrmRoute;
+              }>;
+            }
+
+            const data = (await response.json()) as { routes?: OsrmRoute[] };
+            return (data.routes ?? []).map((route) => ({ profile, route }));
+          } catch {
+            return [] as Array<{
+              profile: "foot" | "driving";
+              route: OsrmRoute;
+            }>;
           }
+        };
 
-          const data = (await response.json()) as { routes?: OsrmRoute[] };
-          if (data.routes?.[0]) {
-            firstRoute = data.routes[0];
-            selectedProfile = profile;
-            break;
-          }
-        }
+        const profileResponses = await Promise.all(
+          (["foot", "driving"] as const).map((profile) =>
+            requestRoutes(profile),
+          ),
+        );
 
-        if (!firstRoute) {
+        const allCandidates = profileResponses
+          .flat()
+          .sort((a, b) => a.route.duration - b.route.duration);
+
+        const primaryCandidate = allCandidates[0];
+
+        if (!primaryCandidate) {
           throw new Error("No route found for this destination.");
         }
 
-        const points: [number, number][] = firstRoute.geometry.coordinates.map(
-          ([lon, lat]) => [lat, lon],
-        );
-        const steps = firstRoute.legs.flatMap((leg) =>
-          leg.steps.map((step) => ({
-            instruction: buildInstruction(step),
-            distance: step.distance,
-          })),
+        let alternativeCandidate = allCandidates.find(
+          (candidate, index) =>
+            index > 0 &&
+            !areRoutesTooSimilar(primaryCandidate.route, candidate.route),
         );
 
-        setRoute({
-          distance: firstRoute.distance,
-          duration: firstRoute.duration,
-          profile: selectedProfile,
-          points,
-          steps,
-        });
+        if (!alternativeCandidate) {
+          const detourWaypoints = PRESET_DESTINATIONS.map((place) => ({
+            lat: place.lat,
+            lon: place.lon,
+          }))
+            .filter(
+              (point) =>
+                pointDistanceMeters(point, startPoint) > 35 &&
+                pointDistanceMeters(point, destination) > 35,
+            )
+            .sort(
+              (a, b) =>
+                pointToSegmentDistanceMeters(b, startPoint, destination) -
+                pointToSegmentDistanceMeters(a, startPoint, destination),
+            )
+            .slice(0, 4);
+
+          if (detourWaypoints.length > 0) {
+            const detourResponses = await Promise.all(
+              detourWaypoints.map((waypoint) =>
+                requestRoutes("foot", waypoint),
+              ),
+            );
+
+            const detourCandidates = detourResponses
+              .flat()
+              .sort((a, b) => a.route.duration - b.route.duration);
+
+            alternativeCandidate = detourCandidates.find(
+              (candidate) =>
+                !areRoutesTooSimilar(primaryCandidate.route, candidate.route),
+            );
+          }
+        }
+
+        if (!alternativeCandidate) {
+          alternativeCandidate = allCandidates.find((_, index) => index > 0);
+        }
+
+        setRoute(toRouteInfo(primaryCandidate.route, primaryCandidate.profile));
+        setIsUsingAlternativeRoute(false);
+
+        if (alternativeCandidate) {
+          setAlternativeRoute(
+            toRouteInfo(
+              alternativeCandidate.route,
+              alternativeCandidate.profile,
+            ),
+          );
+        } else {
+          setAlternativeRoute(null);
+        }
 
         setSimulationIndex(null);
         setIsSimulationPaused(false);
         setShowNextStopPrompt(false);
+        setHasArrivedAtDestination(false);
       } catch {
         if (controller.signal.aborted) {
           return;
         }
         setRoute(null);
+        setAlternativeRoute(null);
         setRouteError("Could not build a route. Try a different destination.");
       } finally {
         if (!controller.signal.aborted) {
@@ -896,29 +1157,30 @@ function App() {
     }
 
     const lastIndex = route.points.length - 1;
-    if (simulationIndex >= lastIndex) {
+    if (simulationIndex >= lastIndex - 0.0001) {
       setIsSimulationPaused(true);
-      if (destination) {
-        setCurrentStartPoint({ lat: destination.lat, lon: destination.lon });
-        setStartLabel(compactLabel(destination.label));
-      }
+      setHasArrivedAtDestination(true);
       setShowNextStopPrompt(true);
       return;
     }
+
+    const tickMs = 40;
+    const pointsPerSecond = 2.1 * simulationSpeed;
+    const step = (pointsPerSecond * tickMs) / 1000;
 
     const timer = window.setTimeout(() => {
       setSimulationIndex((prev) => {
         if (prev === null) {
           return null;
         }
-        return Math.min(prev + 1, lastIndex);
+        return Math.min(prev + step, lastIndex);
       });
-    }, 260);
+    }, tickMs);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, [route, simulationIndex, isSimulationPaused, destination]);
+  }, [route, simulationIndex, isSimulationPaused, simulationSpeed]);
 
   const visibleStatus = useMemo(() => {
     if (locationError) {
@@ -950,12 +1212,16 @@ function App() {
   const onClearRoute = () => {
     setDestination(null);
     setRoute(null);
+    setAlternativeRoute(null);
+    setIsUsingAlternativeRoute(false);
+    setShowAlternativeRoute(true);
     setRouteError(null);
     setShowDestinationListModal(false);
     setShowDestinationDetails(false);
     setSimulationIndex(null);
     setIsSimulationPaused(false);
     setShowNextStopPrompt(false);
+    setHasArrivedAtDestination(false);
   };
 
   const onStartSimulation = () => {
@@ -966,6 +1232,7 @@ function App() {
     setSimulationIndex(0);
     setIsSimulationPaused(false);
     setShowNextStopPrompt(false);
+    setHasArrivedAtDestination(false);
     setGyroEnabled(false);
     setDeviceHeading(null);
     setFocusRequest({
@@ -988,12 +1255,18 @@ function App() {
     setSimulationIndex(null);
     setIsSimulationPaused(false);
     setShowNextStopPrompt(false);
+    setHasArrivedAtDestination(false);
     setGyroEnabled(false);
     setDeviceHeading(null);
     setFocusRequest({ point: startPoint, zoom: 18 });
   };
 
   const onChooseNextDestination = () => {
+    if (destination) {
+      setCurrentStartPoint({ lat: destination.lat, lon: destination.lon });
+      setStartLabel(compactLabel(destination.label));
+    }
+
     setShowNextStopPrompt(false);
     onClearRoute();
 
@@ -1064,6 +1337,32 @@ function App() {
     setLocationError(null);
   };
 
+  const onChooseAlternativeRoute = () => {
+    if (!route || !alternativeRoute || isUsingAlternativeRoute) {
+      return;
+    }
+
+    setRoute(alternativeRoute);
+    setAlternativeRoute(route);
+    setIsUsingAlternativeRoute(true);
+    setSimulationIndex(null);
+    setIsSimulationPaused(false);
+    setShowNextStopPrompt(false);
+  };
+
+  const onChoosePrimaryRoute = () => {
+    if (!route || !alternativeRoute || !isUsingAlternativeRoute) {
+      return;
+    }
+
+    setRoute(alternativeRoute);
+    setAlternativeRoute(route);
+    setIsUsingAlternativeRoute(false);
+    setSimulationIndex(null);
+    setIsSimulationPaused(false);
+    setShowNextStopPrompt(false);
+  };
+
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-slate-100 font-[Manrope] text-slate-900">
       <MapContainer
@@ -1095,10 +1394,49 @@ function App() {
             fillOpacity: 0.9,
           }}
         >
-          <Tooltip permanent direction="top" offset={[0, -12]}>
+          <Tooltip direction="top" offset={[0, -12]}>
             {startLabel}
           </Tooltip>
         </CircleMarker>
+
+        {activeEntryMode === "quick"
+          ? PRESET_DESTINATIONS.map((place) => (
+              <CircleMarker
+                key={`hit-${place.label}`}
+                center={[place.lat, place.lon]}
+                radius={15}
+                pathOptions={{
+                  color: "transparent",
+                  fillColor: "transparent",
+                  fillOpacity: 0,
+                }}
+                eventHandlers={{
+                  click: () => {
+                    onSelectPresetDestination(place);
+                  },
+                }}
+              />
+            ))
+          : null}
+
+        {activeEntryMode === "quick"
+          ? PRESET_DESTINATIONS.map((place) => (
+              <Marker
+                key={`pin-${place.label}`}
+                position={[place.lat, place.lon]}
+                icon={buildingPinIcon}
+                eventHandlers={{
+                  click: () => {
+                    onSelectPresetDestination(place);
+                  },
+                }}
+              >
+                <Tooltip direction="top" offset={[0, -10]}>
+                  {compactLabel(place.label)}
+                </Tooltip>
+              </Marker>
+            ))
+          : null}
 
         {destination ? (
           <CircleMarker
@@ -1110,7 +1448,7 @@ function App() {
               fillOpacity: 1,
             }}
           >
-            <Tooltip permanent direction="top" offset={[0, -12]}>
+            <Tooltip direction="top" offset={[0, -12]}>
               Destination
             </Tooltip>
           </CircleMarker>
@@ -1118,6 +1456,22 @@ function App() {
 
         {route ? (
           <>
+            {alternativeRoute && showAlternativeRoute ? (
+              <Polyline
+                positions={alternativeRoute.points}
+                pathOptions={{
+                  color: "#334155",
+                  weight: 4,
+                  opacity: 0.55,
+                  dashArray: "7 10",
+                }}
+                eventHandlers={{
+                  click: () => {
+                    onChooseAlternativeRoute();
+                  },
+                }}
+              />
+            ) : null}
             <Polyline
               positions={route.points}
               pathOptions={{
@@ -1150,7 +1504,7 @@ function App() {
               fillOpacity: 0.95,
             }}
           >
-            <Tooltip permanent direction="top" offset={[0, -12]}>
+            <Tooltip direction="top" offset={[0, -12]}>
               Debug Walker
             </Tooltip>
           </CircleMarker>
@@ -1315,21 +1669,21 @@ function App() {
 
       {destination ? (
         <section
-          className={`pointer-events-none absolute left-4 right-4 z-[900] w-auto overlay-enter md:right-auto md:w-[340px] ${showTopDirectionBanner ? "top-24" : "top-4"}`}
+          className={`pointer-events-none absolute left-3 right-3 z-[900] w-auto md:left-4 md:right-auto md:w-[340px] ${showTopDirectionBanner ? "top-24" : "top-3 md:top-4"} ${hasArrivedAtDestination ? "overlay-enter block" : "hidden md:block"}`}
         >
-          <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur-sm">
+          <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 p-2.5 shadow-xl backdrop-blur-sm md:p-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Destination preview
             </p>
             <img
               src={selectedPresetDestination?.image ?? welcomeRouteImage}
               alt={`${compactLabel(destination.label)} preview`}
-              className="mt-2 h-36 w-full rounded-lg border border-slate-200 object-cover"
+              className="mt-2 hidden h-36 w-full rounded-lg border border-slate-200 object-cover md:block"
             />
-            <p className="mt-2 text-sm font-semibold text-slate-900">
+            <p className="mt-1.5 text-sm font-semibold text-slate-900 md:mt-2">
               {compactLabel(destination.label)}
             </p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600 md:line-clamp-none">
               {selectedPresetDestination?.summary ??
                 "Destination loaded from a shared route. Choose a quick destination to view local details."}
             </p>
@@ -1337,17 +1691,19 @@ function App() {
             <button
               type="button"
               onClick={onToggleDestinationDetails}
-              className="mt-2 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+              className="mt-2 hidden rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 md:inline-block"
             >
               {showDestinationDetails ? "Hide details" : "View details"}
             </button>
 
             {showDestinationDetails ? (
-              <ul className="mt-2 space-y-1.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-700">
-                {(selectedPresetDestination?.details ?? [
-                  "Detailed profile is currently unavailable for this shared destination.",
-                  "Select a quick destination from the list to load full local details.",
-                ]).map((detail) => (
+              <ul className="mt-2 hidden space-y-1.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-700 md:block">
+                {(
+                  selectedPresetDestination?.details ?? [
+                    "Detailed profile is currently unavailable for this shared destination.",
+                    "Select a quick destination from the list to load full local details.",
+                  ]
+                ).map((detail) => (
                   <li key={detail} className="flex gap-2">
                     <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-500" />
                     <span>{detail}</span>
@@ -1429,11 +1785,16 @@ function App() {
         </header>
 
         {routeLoading ? (
-          <div className="space-y-2">
-            <div className="h-6 w-2/3 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-5/6 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-4/6 animate-pulse rounded bg-slate-200" />
+          <div className="flex flex-col items-center justify-center space-y-3 rounded-xl border border-blue-200 bg-blue-50 py-8 px-4">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-blue-900">
+                Calculating the fastest route...
+              </p>
+              <p className="mt-1 text-xs text-blue-700">
+                Finding the best path to your destination
+              </p>
+            </div>
           </div>
         ) : null}
 
@@ -1451,6 +1812,104 @@ function App() {
               </div>
             </div>
 
+            {alternativeRoute ? (
+              <div className="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                <p className="mb-3 text-sm font-bold text-indigo-900">
+                  Choose your route
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Main Route Option */}
+                  <button
+                    type="button"
+                    onClick={onChoosePrimaryRoute}
+                    className={`rounded-lg border-2 p-3 text-left transition ${
+                      isUsingAlternativeRoute
+                        ? "border-slate-300 bg-white hover:border-sky-300"
+                        : "border-sky-500 bg-sky-50 hover:border-sky-600"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-slate-600">
+                        FASTEST
+                      </p>
+                      {!isUsingAlternativeRoute && (
+                        <CheckCircle2 className="h-5 w-5 text-sky-600" />
+                      )}
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Zap className="h-4 w-4 text-sky-600" />
+                        <span className="text-sm font-bold text-slate-900">
+                          {formatDuration(route.duration)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-4 w-4 text-slate-400" />
+                        <span className="text-xs text-slate-700">
+                          {formatDistance(route.distance)}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Alternative Route Option */}
+                  <button
+                    type="button"
+                    onClick={onChooseAlternativeRoute}
+                    className={`rounded-lg border-2 p-3 text-left transition ${
+                      isUsingAlternativeRoute
+                        ? "border-slate-700 bg-slate-100 hover:border-slate-800"
+                        : "border-slate-300 bg-white hover:border-slate-400"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-slate-600">
+                        ALTERNATIVE
+                      </p>
+                      {isUsingAlternativeRoute && (
+                        <CheckCircle2 className="h-5 w-5 text-slate-700" />
+                      )}
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4 text-slate-600" />
+                        <span className="text-sm font-bold text-slate-900">
+                          {formatDuration(alternativeRoute.duration)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-4 w-4 text-slate-400" />
+                        <span className="text-xs text-slate-700">
+                          {formatDistance(alternativeRoute.distance)}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+                <div className="mt-3 flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowAlternativeRoute((prev) => !prev)}
+                    className="text-xs font-medium text-indigo-700 hover:text-indigo-900"
+                  >
+                    {showAlternativeRoute
+                      ? "Hide route visualization"
+                      : "Show route visualization"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="mb-2 text-sm font-bold text-emerald-900">
+                  Direct route available
+                </p>
+                <p className="text-xs text-emerald-700">
+                  Only one optimal path found to your destination. Ready to
+                  start walking!
+                </p>
+              </div>
+            )}
+
             <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
                 Debug Tools
@@ -1458,6 +1917,22 @@ function App() {
               <p className="mt-1 text-xs text-amber-700">
                 Simulate walking from start to destination.
               </p>
+              <div className="mt-2 rounded-lg border border-amber-200 bg-white p-2">
+                <label className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                  Walk speed: {simulationSpeed.toFixed(2)}x
+                </label>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={3}
+                  step={0.25}
+                  value={simulationSpeed}
+                  onChange={(event) =>
+                    setSimulationSpeed(Number(event.target.value))
+                  }
+                  className="mt-1 w-full accent-amber-500"
+                />
+              </div>
               <p className="mt-1 text-xs font-medium text-amber-800">
                 Progress: {simulationProgress}%
               </p>
@@ -1579,26 +2054,31 @@ function App() {
       </section>
 
       {showNextStopPrompt ? (
-        <section className="pointer-events-none absolute inset-0 z-[980] flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-white/30 bg-slate-900/90 p-5 text-slate-50 shadow-2xl backdrop-blur-md">
-            <p className="font-[Sora] text-lg font-semibold">You arrived!</p>
-            <p className="mt-2 text-sm text-slate-200">
-              Where do you want to go next?
+        <section className="pointer-events-none absolute inset-x-0 bottom-0 z-[980] flex items-end justify-center bg-linear-to-t from-slate-900/30 to-transparent p-3 md:inset-0 md:items-center md:bg-slate-900/35 md:p-4">
+          <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-slate-300/40 bg-white/95 p-5 text-slate-900 shadow-2xl backdrop-blur-md overlay-enter">
+            <p className="font-[Sora] text-lg font-semibold">
+              You arrived at{" "}
+              {destination
+                ? compactLabel(destination.label)
+                : "your destination"}
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              What do you want to do?
             </p>
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={onChooseNextDestination}
-                className="flex-1 rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                onClick={() => setShowNextStopPrompt(false)}
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
               >
-                Choose next destination
+                Stay here
               </button>
               <button
                 type="button"
-                onClick={() => setShowNextStopPrompt(false)}
-                className="rounded-xl border border-slate-500 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-800"
+                onClick={onChooseNextDestination}
+                className="flex-1 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
               >
-                Stay here
+                Pick another one
               </button>
             </div>
           </div>
