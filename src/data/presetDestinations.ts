@@ -36,7 +36,7 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     keywords: ["gym", "sports", "fitness"],
   },
   {
-    label: "Computer Studies Department",
+    label: "Center for Computer and Engineering Studies / Salceda Building",
     lat: 13.2958673,
     lon: 123.4848151,
     image: destinationComputerStudiesImage,
@@ -90,5 +90,19 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
       "Useful waypoint for navigation within the campus core",
     ],
     keywords: ["salceda", "salceda building", "building", "sb"],
+  },
+  {
+    label: "Electronical Technology Department",
+    lat: 13.29567,
+    lon: 123.48419,
+    image: destinationComputerStudiesImage,
+    summary:
+      "Department area for technology-focused classes, labs, and student consultations.",
+    details: [
+      "Common stop for technology and applied technical subjects",
+      "Near central campus walkways and neighboring academic buildings",
+      "Useful destination for class navigation and department concerns",
+    ],
+    keywords: ["technological", "technology", "tech department", "etd"],
   },
 ];
