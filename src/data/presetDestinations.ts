@@ -1,26 +1,11 @@
 import destinationAdminImage from "../assets/destination-admin.svg";
 import destinationComputerStudiesImage from "../assets/destination-computer-studies.svg";
-import destinationFountainImage from "../assets/destination-fountain.svg";
 import destinationGymImage from "../assets/destination-gym.svg";
 import type { Point, PresetDestination } from "../types/navigation";
 
 export const GUARD_HOUSE: Point = { lat: 13.29540325, lon: 123.486557525 };
 
 export const PRESET_DESTINATIONS: PresetDestination[] = [
-  {
-    label: "BUPC Fountain",
-    lat: 13.2961752,
-    lon: 123.4847694,
-    image: destinationFountainImage,
-    summary:
-      "Central campus landmark where students usually meet before heading to classes.",
-    details: [
-      "Open public area and common meetup point",
-      "Best landmark reference for first-time visitors",
-      "Near major campus pathways and nearby services",
-    ],
-    keywords: ["fountain", "plaza", "center"],
-  },
   {
     label: "BUP GYM",
     lat: 13.2959792,
@@ -48,6 +33,34 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
       "Department office and student consultation area",
     ],
     keywords: ["computer", "it", "ccs", "department"],
+  },
+  {
+    label: "BUP Canteen",
+    lat: 13.29635,
+    lon: 123.48479,
+    image: destinationAdminImage,
+    summary:
+      "Campus food area where students and staff usually eat and take short breaks.",
+    details: [
+      "Common stop between classes for meals and snacks",
+      "Located near major campus walkways and nearby departments",
+      "Useful destination for quick food and refreshment breaks",
+    ],
+    keywords: ["canteen", "food", "cafeteria", "eat"],
+  },
+  {
+    label: "Registrar",
+    lat: 13.29525,
+    lon: 123.48498,
+    image: destinationAdminImage,
+    summary:
+      "Registrar office for enrollment, records requests, and student document processing.",
+    details: [
+      "Handles enrollment and records-related transactions",
+      "Common destination for official student documents",
+      "Near the administrative service area",
+    ],
+    keywords: ["registrar", "records", "enrollment", "documents"],
   },
   {
     label: "Administrative Building",

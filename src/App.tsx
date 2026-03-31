@@ -9,7 +9,6 @@ import { DestinationListModal } from "./components/DestinationListModal";
 import { DestinationPreviewCard } from "./components/DestinationPreviewCard";
 import { FloatingActionButtons } from "./components/FloatingActionButtons";
 import { NextStopPrompt } from "./components/NextStopPrompt";
-import { QrPreviewModal } from "./components/QrPreviewModal";
 import { RouteAssistantPanel } from "./components/RouteAssistantPanel";
 import { StatusToast } from "./components/StatusToast";
 import { TopDirectionBanner } from "./components/TopDirectionBanner";
@@ -32,8 +31,9 @@ import {
   encodePacket,
 } from "./utils/routePacket";
 import {
-  getVoiceRecognitionConstructor,
-  type VoiceRecognitionInstance,
+  captureAudioFromMicrophone,
+  transcribeAudioWithFastAPI,
+  isFastAPIVoiceSupportedInBrowser,
 } from "./utils/voiceRecognition";
 import type {
   Destination,
@@ -58,7 +58,7 @@ function App() {
 
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [simulationIndex, setSimulationIndex] = useState<number | null>(null);
-  const [simulationSpeed, setSimulationSpeed] = useState(1.25);
+  const [simulationSpeed] = useState(1.25);
   const [isSimulationPaused, setIsSimulationPaused] = useState(false);
   const [showNextStopPrompt, setShowNextStopPrompt] = useState(false);
   const [hasArrivedAtDestination, setHasArrivedAtDestination] = useState(false);
@@ -67,16 +67,16 @@ function App() {
   const [startLabel, setStartLabel] = useState("Guard House");
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
-  const [showQrModal, setShowQrModal] = useState(false);
-  const [gyroEnabled, setGyroEnabled] = useState(false);
+  const [gyroEnabled] = useState(false);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(true);
   const [entryMode, setEntryMode] = useState<EntryMode | null>(null);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const [showDestinationDetails, setShowDestinationDetails] = useState(false);
   const [showDestinationListModal, setShowDestinationListModal] =
     useState(false);
-  const voiceRecognitionRef = useRef<VoiceRecognitionInstance | null>(null);
+  const voiceCaptureAbortRef = useRef<AbortController | null>(null);
 
   const isShareLinkPublic = useMemo(() => {
     if (PUBLIC_BASE_URL) {
@@ -90,7 +90,7 @@ function App() {
   const startPoint = currentStartPoint;
   const activeEntryMode = entryMode ?? "quick";
   const voiceRecognitionSupported = useMemo(
-    () => getVoiceRecognitionConstructor() !== null,
+    () => isFastAPIVoiceSupportedInBrowser(),
     [],
   );
   const selectedPresetDestination = useMemo(
@@ -122,16 +122,6 @@ function App() {
   }, [route, simulationIndex]);
 
   const isSimulationRunning = simulationIndex !== null && !isSimulationPaused;
-  const canSimulate = Boolean(route && route.points.length > 1);
-  const simulationProgress =
-    route && simulationIndex !== null && route.points.length > 1
-      ? Math.round(
-          (Math.max(0, Math.min(simulationIndex, route.points.length - 1)) /
-            (route.points.length - 1)) *
-            100,
-        )
-      : 0;
-
   const headingDegrees = useMemo(() => {
     if (!route || simulationIndex === null) {
       return 0;
@@ -200,27 +190,40 @@ function App() {
   };
 
   const stopVoiceRecognition = () => {
-    if (voiceRecognitionRef.current) {
-      voiceRecognitionRef.current.stop();
-      voiceRecognitionRef.current = null;
+    if (voiceCaptureAbortRef.current) {
+      voiceCaptureAbortRef.current.abort();
+      voiceCaptureAbortRef.current = null;
     }
     setIsVoiceListening(false);
+    setVoiceFeedback(null);
   };
 
   const runAiVoiceCommand = (rawCommand: string) => {
+    console.log("[Voice Command] Processing voice input:", rawCommand);
+
     const command = rawCommand.trim();
     if (!command) {
+      console.log("[Voice Command] Empty command after trim");
       setLocationError("Voice command did not capture a destination.");
       return;
     }
 
+    console.log(
+      "[Voice Command] Attempting to match against preset destinations",
+    );
     const matchedPreset = resolvePresetFromPrompt(command, PRESET_DESTINATIONS);
+
     if (matchedPreset) {
+      console.log(
+        "[Voice Command] SUCCESS - Destination matched:",
+        matchedPreset.label,
+      );
       applyDestination(matchedPreset);
       setLocationError(null);
       return;
     }
 
+    console.log("[Voice Command] FAILED - No matching destination found");
     setLocationError(
       "Voice command recognized, but no preset destination was matched.",
     );
@@ -241,78 +244,85 @@ function App() {
     }
   };
 
-  const onToggleVoiceCommand = () => {
+  const onToggleVoiceCommand = async () => {
     if (isVoiceListening) {
+      console.log("[Voice] Stopping voice recognition");
       stopVoiceRecognition();
       return;
     }
-
-    const RecognitionConstructor = getVoiceRecognitionConstructor();
-    if (!RecognitionConstructor) {
-      setLocationError(
-        "Voice command is not supported in this browser. Use quick destination mode.",
-      );
-      return;
-    }
-
-    const recognition = new RecognitionConstructor();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event) => {
-      let finalTranscript = "";
-      let interimTranscript = "";
-
-      for (
-        let index = event.resultIndex;
-        index < event.results.length;
-        index += 1
-      ) {
-        const result = event.results[index];
-        const primaryAlternative = result?.[0];
-        if (!primaryAlternative?.transcript) {
-          continue;
-        }
-
-        if (result.isFinal) {
-          finalTranscript += `${primaryAlternative.transcript} `;
-        } else {
-          interimTranscript += `${primaryAlternative.transcript} `;
-        }
-      }
-
-      const polishedInterim = interimTranscript.trim();
-      void polishedInterim;
-
-      const polishedFinal = finalTranscript.trim();
-      if (polishedFinal) {
-        runAiVoiceCommand(polishedFinal);
-        stopVoiceRecognition();
-      }
-    };
-
-    recognition.onerror = (event) => {
-      const message =
-        event.error === "not-allowed"
-          ? "Microphone permission denied for voice command."
-          : event.error === "no-speech"
-            ? "No speech detected. Try speaking clearly."
-            : "Voice command failed. Please try again.";
-
-      setLocationError(message);
-      stopVoiceRecognition();
-    };
-
-    recognition.onend = () => {
-      setIsVoiceListening(false);
-      voiceRecognitionRef.current = null;
-    };
 
     setLocationError(null);
     setIsVoiceListening(true);
-    voiceRecognitionRef.current = recognition;
-    recognition.start();
+    setVoiceFeedback("Listening... say where you want to go");
+    console.log("[Voice] Starting voice recognition...");
+
+    const controller = new AbortController();
+    voiceCaptureAbortRef.current = controller;
+
+    try {
+      console.log("[Voice] Listening - awaiting user speech...");
+
+      // Capture audio from microphone
+      console.log("[Voice] Capturing audio from microphone...");
+      const audioBlob = await captureAudioFromMicrophone({
+        maxDurationMs: 4500,
+        timesliceMs: 250,
+        signal: controller.signal,
+      });
+      console.log(
+        "[Voice] Audio captured successfully, size:",
+        audioBlob.size,
+        "bytes",
+      );
+
+      // Transcribe audio using FastAPI endpoint
+      console.log(
+        "[Voice] Sending audio to FastAPI endpoint for transcription...",
+      );
+      setVoiceFeedback("Transcribing your voice...");
+      const transcript = await transcribeAudioWithFastAPI(audioBlob);
+      console.log("[Voice] Transcription received from FastAPI:", transcript);
+
+      // Process the transcribed text to find a matching destination
+      if (transcript) {
+        console.log(
+          "[Voice] Processing transcribed text for destination matching...",
+        );
+        setVoiceFeedback("Matching destination...");
+        runAiVoiceCommand(transcript);
+      } else {
+        console.log("[Voice] No transcript returned from FastAPI");
+        setLocationError("No speech detected. Please try again.");
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error("[Voice] Error during voice recognition:", error);
+
+      if (
+        errorMessage.includes("NotAllowedError") ||
+        errorMessage.includes("permission")
+      ) {
+        setLocationError(
+          "Microphone permission denied. Please enable microphone access in your browser settings.",
+        );
+      } else if (errorMessage.includes("NotFoundError")) {
+        setLocationError(
+          "No microphone found. Please connect a microphone and try again.",
+        );
+      } else if (errorMessage.includes("HF API key")) {
+        setLocationError(
+          "Voice transcription service is not configured. Please contact support.",
+        );
+      } else {
+        setLocationError(`Voice command failed: ${errorMessage}`);
+      }
+    } finally {
+      console.log("[Voice] Voice recognition ended");
+      voiceCaptureAbortRef.current = null;
+      setIsVoiceListening(false);
+      setVoiceFeedback(null);
+    }
   };
 
   useEffect(() => {
@@ -378,9 +388,9 @@ function App() {
 
   useEffect(() => {
     return () => {
-      if (voiceRecognitionRef.current) {
-        voiceRecognitionRef.current.stop();
-        voiceRecognitionRef.current = null;
+      if (voiceCaptureAbortRef.current) {
+        voiceCaptureAbortRef.current.abort();
+        voiceCaptureAbortRef.current = null;
       }
     };
   }, []);
@@ -392,7 +402,6 @@ function App() {
       setRouteLoading(false);
       setQrCodeDataUrl(null);
       setShareLink(null);
-      setShowQrModal(false);
       setShowDestinationDetails(false);
       setSimulationIndex(null);
       setIsSimulationPaused(false);
@@ -443,7 +452,6 @@ function App() {
     if (!route || !destination) {
       setQrCodeDataUrl(null);
       setShareLink(null);
-      setShowQrModal(false);
       return;
     }
 
@@ -525,6 +533,9 @@ function App() {
   }, [route, simulationIndex, isSimulationPaused, simulationSpeed]);
 
   const visibleStatus = useMemo(() => {
+    if (voiceFeedback) {
+      return voiceFeedback;
+    }
     if (locationError) {
       return locationError;
     }
@@ -532,7 +543,7 @@ function App() {
       return routeError;
     }
     return null;
-  }, [locationError, routeError]);
+  }, [voiceFeedback, locationError, routeError]);
 
   const onSelectPresetDestination = (place: PresetDestination) => {
     applyDestination(place);
@@ -563,43 +574,6 @@ function App() {
     setHasArrivedAtDestination(false);
   };
 
-  const onStartSimulation = () => {
-    if (!route || route.points.length < 2) {
-      return;
-    }
-
-    setSimulationIndex(0);
-    setIsSimulationPaused(false);
-    setShowNextStopPrompt(false);
-    setHasArrivedAtDestination(false);
-    setGyroEnabled(false);
-    setDeviceHeading(null);
-    setFocusRequest({
-      point: {
-        lat: route.points[0][0],
-        lon: route.points[0][1],
-      },
-      zoom: 19,
-    });
-  };
-
-  const onToggleSimulationPause = () => {
-    if (simulationIndex === null) {
-      return;
-    }
-    setIsSimulationPaused((prev) => !prev);
-  };
-
-  const onResetSimulation = () => {
-    setSimulationIndex(null);
-    setIsSimulationPaused(false);
-    setShowNextStopPrompt(false);
-    setHasArrivedAtDestination(false);
-    setGyroEnabled(false);
-    setDeviceHeading(null);
-    setFocusRequest({ point: startPoint, zoom: 18 });
-  };
-
   const onChooseNextDestination = () => {
     if (destination) {
       setCurrentStartPoint({ lat: destination.lat, lon: destination.lon });
@@ -627,53 +601,6 @@ function App() {
     } catch {
       setLocationError("Could not copy share link on this browser.");
     }
-  };
-
-  const onOpenQrModal = () => {
-    if (!qrCodeDataUrl) {
-      return;
-    }
-    setShowQrModal(true);
-  };
-
-  const onCloseQrModal = () => {
-    setShowQrModal(false);
-  };
-
-  const onToggleGyroMode = async () => {
-    if (gyroEnabled) {
-      setGyroEnabled(false);
-      setDeviceHeading(null);
-      return;
-    }
-
-    if (
-      typeof window === "undefined" ||
-      !("DeviceOrientationEvent" in window)
-    ) {
-      setLocationError("Gyroscope is not supported on this device/browser.");
-      return;
-    }
-
-    const permissionRequester = DeviceOrientationEvent as unknown as {
-      requestPermission?: () => Promise<string>;
-    };
-
-    if (typeof permissionRequester.requestPermission === "function") {
-      try {
-        const permission = await permissionRequester.requestPermission();
-        if (permission !== "granted") {
-          setLocationError("Gyroscope permission was denied.");
-          return;
-        }
-      } catch {
-        setLocationError("Could not request gyroscope permission.");
-        return;
-      }
-    }
-
-    setGyroEnabled(true);
-    setLocationError(null);
   };
 
   return (
@@ -755,24 +682,9 @@ function App() {
         formatDistance={formatDistance}
         formatDuration={formatDuration}
         compactLabel={compactLabel}
-        simulationSpeed={simulationSpeed}
-        onSimulationSpeedChange={setSimulationSpeed}
-        simulationProgress={simulationProgress}
-        currentStep={currentStep}
-        effectiveHeading={effectiveHeading}
-        onStartSimulation={onStartSimulation}
-        canSimulate={canSimulate}
-        onToggleSimulationPause={onToggleSimulationPause}
-        simulationIndex={simulationIndex}
-        isSimulationPaused={isSimulationPaused}
-        onResetSimulation={onResetSimulation}
-        onToggleGyroMode={onToggleGyroMode}
-        isSimulationRunning={isSimulationRunning}
-        gyroEnabled={gyroEnabled}
         qrCodeDataUrl={qrCodeDataUrl}
         shareLink={shareLink}
         isShareLinkPublic={isShareLinkPublic}
-        onOpenQrModal={onOpenQrModal}
         onCopyShareLink={onCopyShareLink}
       />
 
@@ -783,13 +695,6 @@ function App() {
         }
         onStay={() => setShowNextStopPrompt(false)}
         onPickAnother={onChooseNextDestination}
-      />
-
-      <QrPreviewModal
-        show={showQrModal}
-        qrCodeDataUrl={qrCodeDataUrl}
-        onClose={onCloseQrModal}
-        onCopyShareLink={onCopyShareLink}
       />
     </main>
   );
