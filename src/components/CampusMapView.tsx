@@ -1,4 +1,5 @@
 import type { DivIcon, LatLngExpression } from "leaflet";
+import type { Polyline as LeafletPolyline } from "leaflet";
 import {
   CircleMarker,
   MapContainer,
@@ -110,17 +111,25 @@ function SimulationFollowController({
   return null;
 }
 
-function RouteAnimationController({ enabled }: { enabled: boolean }) {
-  const map = useMap();
+function RouteAnimationController({
+  animatedPolylineRef,
+}: {
+  animatedPolylineRef: React.RefObject<LeafletPolyline | null>;
+}) {
   const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) {
+    const polyline = animatedPolylineRef.current;
+    if (!polyline) {
       return;
     }
 
-    const container = map.getContainer();
-    const animatedPathSelector = "path.route-line-animated";
+    const pathElement = (polyline as any)._path as SVGPathElement | undefined;
+    if (!pathElement) {
+      console.warn("[RouteAnimation] Path element not found");
+      return;
+    }
+
     const start = performance.now();
 
     const animate = (timestamp: number) => {
@@ -128,12 +137,8 @@ function RouteAnimationController({ enabled }: { enabled: boolean }) {
       const dashOffset = -((elapsed / 22) % 64);
       const breathe = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(elapsed / 350));
 
-      container
-        .querySelectorAll<SVGPathElement>(animatedPathSelector)
-        .forEach((path) => {
-          path.style.strokeDashoffset = dashOffset.toFixed(2);
-          path.style.strokeOpacity = breathe.toFixed(3);
-        });
+      pathElement.style.strokeDashoffset = dashOffset.toFixed(2);
+      pathElement.style.strokeOpacity = breathe.toFixed(3);
 
       frameRef.current = window.requestAnimationFrame(animate);
     };
@@ -146,14 +151,10 @@ function RouteAnimationController({ enabled }: { enabled: boolean }) {
         frameRef.current = null;
       }
 
-      container
-        .querySelectorAll<SVGPathElement>(animatedPathSelector)
-        .forEach((path) => {
-          path.style.removeProperty("stroke-dashoffset");
-          path.style.removeProperty("stroke-opacity");
-        });
+      pathElement.style.removeProperty("stroke-dashoffset");
+      pathElement.style.removeProperty("stroke-opacity");
     };
-  }, [enabled, map]);
+  }, [animatedPolylineRef]);
 
   return null;
 }
@@ -175,6 +176,8 @@ export function CampusMapView({
   onSelectPresetDestination,
   compactLabel,
 }: CampusMapViewProps) {
+  const animatedPolylineRef = useRef<LeafletPolyline | null>(null);
+
   return (
     <MapContainer
       className="h-full w-full"
@@ -195,7 +198,7 @@ export function CampusMapView({
         heading={effectiveHeading}
         rotateWithHeading={gyroEnabled}
       />
-      <RouteAnimationController enabled={Boolean(route)} />
+      <RouteAnimationController animatedPolylineRef={animatedPolylineRef} />
 
       <CircleMarker
         center={[startPoint.lat, startPoint.lon]}
@@ -278,6 +281,7 @@ export function CampusMapView({
             }}
           />
           <Polyline
+            ref={animatedPolylineRef}
             positions={route.points}
             pathOptions={{
               color: "#67e8f9",
