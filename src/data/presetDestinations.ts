@@ -1,5 +1,6 @@
 import destinationAdminImage from "../assets/destination-admin.svg";
 import destinationComputerStudiesImage from "../assets/destination-computer-studies.svg";
+import destinationComputerStudiesSecondFloorImage from "../assets/destination-computer-studies-2nd.svg";
 import destinationGymImage from "../assets/destination-gym.svg";
 import type { Point, PresetDestination } from "../types/navigation";
 
@@ -25,6 +26,48 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     lat: 13.2958673,
     lon: 123.4848151,
     image: destinationComputerStudiesImage,
+    floorPlans: [
+      { label: "1st Floor", image: destinationComputerStudiesImage },
+      {
+        label: "2nd Floor",
+        image: destinationComputerStudiesSecondFloorImage,
+      },
+    ],
+    floorDirectory: [
+      {
+        floorLabel: "1st Floor",
+        items: [
+          {
+            label: "Center for Computer and Engineering Studies Office",
+            marker: [87, 77],
+          },
+          { label: "Technology Department Office", marker: [88, 66] },
+          { label: "ENGR Department", marker: [24, 14] },
+          { label: "ECB 12", marker: [86, 55] },
+          { label: "ECB 13", marker: [86, 44] },
+          { label: "ECB 14", marker: [69, 14] },
+          { label: "ECB 16", marker: [11, 54] },
+          { label: "ECB 17", marker: [11, 69] },
+          { label: "ECB 18", marker: [11, 43] },
+          { label: "ECB 19 Lab 1", marker: [35, 36] },
+          { label: "ECB 18 Lab 2", marker: [53, 37] },
+          { label: "CR", marker: [90, 20] },
+          { label: "Stair Access", marker: [50, 35] },
+        ],
+      },
+      {
+        floorLabel: "2nd Floor",
+        items: [
+          { label: "Computer Laboratory", marker: [66, 28] },
+          { label: "Programming Laboratory", marker: [36, 31] },
+          { label: "Faculty Office", marker: [82, 64] },
+          { label: "Department Office", marker: [24, 16] },
+          { label: "Classroom Cluster", marker: [17, 49] },
+          { label: "CR", marker: [84, 19] },
+          { label: "Stair Access", marker: [50, 34] },
+        ],
+      },
+    ],
     summary:
       "Academic building for computer studies classes, labs, and department offices.",
     details: [
@@ -32,7 +75,18 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
       "Contains labs for practical sessions",
       "Department office and student consultation area",
     ],
-    keywords: ["computer", "it", "ccs", "department"],
+    keywords: [
+      "computer",
+      "engineering",
+      "engeneering",
+      "it",
+      "ccs",
+      "center for computer and engineering studies",
+      "center for computer engineering studies",
+      "salceda",
+      "salceda building",
+      "department",
+    ],
   },
   {
     label: "BUP Canteen",

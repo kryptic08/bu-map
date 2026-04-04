@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import type { Destination, PresetDestination } from "../types/navigation";
+
+type DirectoryItem = NonNullable<PresetDestination["floorDirectory"]>[number]["items"][number];
 
 type DestinationPreviewCardProps = {
   destination: Destination | null;
@@ -15,61 +18,246 @@ export function DestinationPreviewCard({
   destination,
   selectedPresetDestination,
   showTopDirectionBanner,
-  hasArrivedAtDestination,
   showDestinationDetails,
   onToggleDestinationDetails,
   compactLabel,
   fallbackImage,
 }: DestinationPreviewCardProps) {
+  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
+  const [selectedFloorIndex, setSelectedFloorIndex] = useState(0);
+  const [selectedDirectoryItemLabel, setSelectedDirectoryItemLabel] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    if (!isFullscreenOpen) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsFullscreenOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isFullscreenOpen]);
+
+  useEffect(() => {
+    setSelectedFloorIndex(0);
+  }, [selectedPresetDestination?.label]);
+
+  useEffect(() => {
+    setSelectedDirectoryItemLabel(null);
+  }, [selectedPresetDestination?.label, selectedFloorIndex]);
+
   if (!destination) {
     return null;
   }
 
+  const floorPlans = selectedPresetDestination?.floorPlans ?? [];
+  const activeFloorPlan = floorPlans[selectedFloorIndex] ?? null;
+  const activeFloorLabel = activeFloorPlan?.label ?? "Ground";
+  const activeFloorDirectory =
+    selectedPresetDestination?.floorDirectory?.find(
+      (entry) => entry.floorLabel === activeFloorLabel,
+    ) ?? null;
+  const activeDirectoryItems: DirectoryItem[] =
+    activeFloorDirectory?.items ??
+    (selectedPresetDestination?.details ?? []).map((detail) => ({
+      label: detail,
+      marker: [50, 35] as [number, number],
+    }));
+  const selectedDirectoryItem =
+    activeDirectoryItems.find((item) => item.label === selectedDirectoryItemLabel) ??
+    null;
+  const previewImageSrc =
+    activeFloorPlan?.image ?? selectedPresetDestination?.image ?? fallbackImage;
+  const previewLabel = compactLabel(destination.label);
+
   return (
-    <section
-      className={`pointer-events-none absolute left-3 right-3 z-[900] w-auto md:left-4 md:right-auto md:w-[340px] ${showTopDirectionBanner ? "top-24" : "top-3 md:top-4"} ${hasArrivedAtDestination ? "overlay-enter block" : "hidden md:block"}`}
-    >
-      <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 p-2.5 shadow-xl backdrop-blur-sm md:p-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-          Destination preview
-        </p>
-        <img
-          src={selectedPresetDestination?.image ?? fallbackImage}
-          alt={`${compactLabel(destination.label)} preview`}
-          className="mt-2 hidden h-36 w-full rounded-lg border border-slate-200 object-cover md:block"
-        />
-        <p className="mt-1.5 text-sm font-semibold text-slate-900 md:mt-2">
-          {compactLabel(destination.label)}
-        </p>
-        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600 md:line-clamp-none">
-          {selectedPresetDestination?.summary ??
-            "Destination loaded from a shared route. Choose a quick destination to view local details."}
-        </p>
+    <>
+      <section
+        className={`pointer-events-none absolute left-3 right-3 z-[900] w-auto overlay-enter md:left-4 md:right-auto md:w-[420px] ${showTopDirectionBanner ? "top-24" : "top-3 md:top-4"}`}
+      >
+        <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur-sm md:p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Destination preview
+          </p>
 
-        <button
-          type="button"
-          onClick={onToggleDestinationDetails}
-          className="mt-2 hidden rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 md:inline-block"
+          {floorPlans.length > 1 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {floorPlans.map((floorPlan, index) => (
+                <button
+                  key={floorPlan.label}
+                  type="button"
+                  onClick={() => setSelectedFloorIndex(index)}
+                  className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
+                    selectedFloorIndex === index
+                      ? "border-blue-500 bg-blue-600 text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {floorPlan.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <img
+            src={previewImageSrc}
+            alt={`${previewLabel} preview`}
+            className="mt-2 block h-44 w-full rounded-lg border border-slate-200 object-cover md:h-56"
+          />
+          <p className="mt-1.5 text-sm font-semibold text-slate-900 md:mt-2">
+            {previewLabel}
+          </p>
+          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600 md:line-clamp-none">
+            {selectedPresetDestination?.summary ??
+              "Destination loaded from a shared route. Choose a quick destination to view local details."}
+          </p>
+
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsFullscreenOpen(true)}
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+            >
+              Full screen
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleDestinationDetails}
+              className="hidden rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 md:inline-block"
+            >
+              {showDestinationDetails ? "Hide details" : "View details"}
+            </button>
+          </div>
+
+          {showDestinationDetails ? (
+            <ul className="mt-2 hidden space-y-1.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-700 md:block">
+              {(
+                selectedPresetDestination?.details ?? [
+                  "Detailed profile is currently unavailable for this shared destination.",
+                  "Select a quick destination from the list to load full local details.",
+                ]
+              ).map((detail) => (
+                <li key={detail} className="flex gap-2">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-500" />
+                  <span>{detail}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </section>
+
+      {isFullscreenOpen ? (
+        <section
+          className="pointer-events-auto absolute inset-0 z-[1100] flex items-center justify-center bg-slate-950/90 p-4"
+          onClick={() => setIsFullscreenOpen(false)}
+          aria-label="Fullscreen destination preview"
         >
-          {showDestinationDetails ? "Hide details" : "View details"}
-        </button>
+          <div
+            className="w-full max-w-7xl rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl md:p-4"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-slate-100 md:text-base">
+                {activeFloorPlan?.label
+                  ? `${previewLabel} - ${activeFloorPlan.label}`
+                  : previewLabel}
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsFullscreenOpen(false)}
+                className="rounded-lg border border-slate-500 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
 
-        {showDestinationDetails ? (
-          <ul className="mt-2 hidden space-y-1.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-700 md:block">
-            {(
-              selectedPresetDestination?.details ?? [
-                "Detailed profile is currently unavailable for this shared destination.",
-                "Select a quick destination from the list to load full local details.",
-              ]
-            ).map((detail) => (
-              <li key={detail} className="flex gap-2">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-500" />
-                <span>{detail}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    </section>
+            <div className="grid gap-3 md:grid-cols-[280px_1fr]">
+              <aside className="rounded-lg border border-slate-700 bg-slate-800/80 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-cyan-200">
+                  Rooms and Offices
+                </p>
+                <p className="mt-1 text-[11px] text-slate-300">{activeFloorLabel}</p>
+
+                <ul className="mt-2 max-h-[58vh] space-y-1.5 overflow-y-auto pr-1 text-xs text-slate-100">
+                  {activeDirectoryItems.map((item) => {
+                    const isActive = selectedDirectoryItemLabel === item.label;
+
+                    return (
+                      <li key={`${activeFloorLabel}-${item.label}`}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDirectoryItemLabel(item.label)}
+                          className={`w-full rounded-md border px-2 py-1.5 text-left transition ${
+                            isActive
+                              ? "border-cyan-400 bg-cyan-500/20 text-cyan-100"
+                              : "border-slate-700 bg-slate-900/65 text-slate-100 hover:bg-slate-800"
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </aside>
+
+              <div className="rounded-lg border border-slate-700 bg-slate-950 p-2">
+                <div className="relative overflow-auto rounded-md">
+                  <img
+                    src={previewImageSrc}
+                    alt={`${previewLabel} full screen preview`}
+                    className="block w-full rounded-md"
+                  />
+
+                  <svg
+                    className="pointer-events-none absolute inset-0 h-full w-full"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
+                    {selectedDirectoryItem ? (
+                      <>
+                        <circle
+                          cx={selectedDirectoryItem.marker[0]}
+                          cy={selectedDirectoryItem.marker[1]}
+                          r="1.7"
+                          fill="#f97316"
+                        />
+                        <circle
+                          cx={selectedDirectoryItem.marker[0]}
+                          cy={selectedDirectoryItem.marker[1]}
+                          r="3.2"
+                          fill="none"
+                          stroke="#fb923c"
+                          strokeWidth="0.5"
+                          opacity="0.8"
+                        />
+                      </>
+                    ) : null}
+                  </svg>
+                </div>
+
+                <p className="mt-2 text-xs text-slate-300">
+                  {selectedDirectoryItem
+                    ? `Pinned location: ${selectedDirectoryItem.label}`
+                    : "Click a room or office on the left to pin its location on the map."}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+    </>
   );
 }

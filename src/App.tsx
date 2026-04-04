@@ -34,6 +34,9 @@ import {
   captureAudioFromMicrophone,
   transcribeAudioWithFastAPI,
   isFastAPIVoiceSupportedInBrowser,
+  isBrowserSpeechRecognitionSupported,
+  isHFTranscriptionConfigured,
+  transcribeWithBrowserSpeechRecognition,
 } from "./utils/voiceRecognition";
 import type {
   Destination,
@@ -90,7 +93,9 @@ function App() {
   const startPoint = currentStartPoint;
   const activeEntryMode = entryMode ?? "quick";
   const voiceRecognitionSupported = useMemo(
-    () => isFastAPIVoiceSupportedInBrowser(),
+    () =>
+      (isHFTranscriptionConfigured() && isFastAPIVoiceSupportedInBrowser()) ||
+      isBrowserSpeechRecognitionSupported(),
     [],
   );
   const selectedPresetDestination = useMemo(
@@ -262,26 +267,41 @@ function App() {
     try {
       console.log("[Voice] Listening - awaiting user speech...");
 
-      // Capture audio from microphone
-      console.log("[Voice] Capturing audio from microphone...");
-      const audioBlob = await captureAudioFromMicrophone({
-        maxDurationMs: 4500,
-        timesliceMs: 250,
-        signal: controller.signal,
-      });
-      console.log(
-        "[Voice] Audio captured successfully, size:",
-        audioBlob.size,
-        "bytes",
-      );
+      const useFastApiTranscription =
+        isHFTranscriptionConfigured() && isFastAPIVoiceSupportedInBrowser();
+      let transcript = "";
 
-      // Transcribe audio using FastAPI endpoint
-      console.log(
-        "[Voice] Sending audio to FastAPI endpoint for transcription...",
-      );
-      setVoiceFeedback("Transcribing your voice...");
-      const transcript = await transcribeAudioWithFastAPI(audioBlob);
-      console.log("[Voice] Transcription received from FastAPI:", transcript);
+      if (useFastApiTranscription) {
+        // Capture audio from microphone for FastAPI transcription.
+        console.log("[Voice] Capturing audio from microphone...");
+        const audioBlob = await captureAudioFromMicrophone({
+          maxDurationMs: 4500,
+          timesliceMs: 250,
+          signal: controller.signal,
+        });
+        console.log(
+          "[Voice] Audio captured successfully, size:",
+          audioBlob.size,
+          "bytes",
+        );
+
+        // Send captured audio to FastAPI endpoint.
+        console.log(
+          "[Voice] Sending audio to FastAPI endpoint for transcription...",
+        );
+        setVoiceFeedback("Transcribing your voice...");
+        transcript = await transcribeAudioWithFastAPI(audioBlob);
+        console.log("[Voice] Transcription received from FastAPI:", transcript);
+      } else {
+        console.log(
+          "[Voice] HF key unavailable; using browser speech recognition fallback.",
+        );
+        setVoiceFeedback("Listening in browser...");
+        transcript = await transcribeWithBrowserSpeechRecognition({
+          signal: controller.signal,
+        });
+        console.log("[Voice] Transcription received from browser:", transcript);
+      }
 
       // Process the transcribed text to find a matching destination
       if (transcript) {
@@ -311,8 +331,18 @@ function App() {
           "No microphone found. Please connect a microphone and try again.",
         );
       } else if (errorMessage.includes("HF API key")) {
+        setLocationError("Voice transcription setup is missing VITE_HF_API_KEY.");
+      } else if (errorMessage.includes("Speech recognition error: not-allowed")) {
         setLocationError(
-          "Voice transcription service is not configured. Please contact support.",
+          "Microphone permission denied. Please enable microphone access in your browser settings.",
+        );
+      } else if (errorMessage.includes("Speech recognition error: no-speech")) {
+        setLocationError("No speech detected. Please try again.");
+      } else if (
+        errorMessage.includes("Browser speech recognition is not supported")
+      ) {
+        setLocationError(
+          "Voice recognition is not supported in this browser. Try Chrome or Edge.",
         );
       } else {
         setLocationError(`Voice command failed: ${errorMessage}`);

@@ -21,8 +21,8 @@ export function WelcomeModal({
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.2),transparent_52%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.24),transparent_45%)]" />
         <div className="relative grid gap-6 p-6 md:grid-cols-[1.1fr_0.9fr] md:p-8">
           <div className="space-y-4">
-            <p className="font-[Sora] text-3xl font-semibold leading-tight text-slate-900 md:text-4xl">
-              Welcome to BU Map Navigator
+            <p className="font-[\'Space_Grotesk\'] text-3xl font-bold leading-tight tracking-tight text-slate-900 md:text-4xl">
+              Welcome to AY MASAIN
             </p>
             <p className="text-sm leading-relaxed text-slate-700 md:text-base">
               Plan your path across campus in seconds. Choose AI voice command
@@ -77,22 +77,18 @@ export function WelcomeModal({
             <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-slate-900">
               <img
                 src={welcomeImage}
-                alt="Illustration of campus route guidance"
+                alt="Computer Studies Department floor plan"
                 className="h-full w-full object-cover"
               />
               <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-slate-950/75 p-3 text-slate-100 backdrop-blur-sm">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-200">
-                  Voice example
+                  Department Map
                 </p>
                 <p className="mt-1 text-sm font-medium leading-relaxed">
-                  "Take me to the Administrative Building"
+                  "Computer Studies Department - 1st Floor"
                 </p>
               </div>
             </div>
-            <p className="mt-3 text-xs leading-relaxed text-slate-600 md:text-sm">
-              BU Map is optimized for mobile and desktop, so you can start from
-              the guard house and navigate confidently around campus.
-            </p>
           </div>
         </div>
       </div>

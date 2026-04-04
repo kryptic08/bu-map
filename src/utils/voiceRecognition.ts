@@ -29,6 +29,12 @@ export type VoiceRecognitionInstance = {
 
 export type VoiceRecognitionConstructor = new () => VoiceRecognitionInstance;
 
+const HF_API_KEY = (import.meta.env.VITE_HF_API_KEY ?? "").trim();
+
+export function isHFTranscriptionConfigured(): boolean {
+  return HF_API_KEY.length > 0;
+}
+
 export function getVoiceRecognitionConstructor(): VoiceRecognitionConstructor | null {
   if (typeof window === "undefined") {
     return null;
@@ -42,6 +48,10 @@ export function getVoiceRecognitionConstructor(): VoiceRecognitionConstructor | 
   return (
     voiceWindow.SpeechRecognition ?? voiceWindow.webkitSpeechRecognition ?? null
   );
+}
+
+export function isBrowserSpeechRecognitionSupported(): boolean {
+  return getVoiceRecognitionConstructor() !== null;
 }
 
 /**
@@ -68,8 +78,7 @@ export function isFastAPIVoiceSupportedInBrowser(): boolean {
 export async function transcribeAudioWithFastAPI(
   audioBlob: Blob,
 ): Promise<string> {
-  const apiKey = import.meta.env.VITE_HF_API_KEY;
-  if (!apiKey) {
+  if (!isHFTranscriptionConfigured()) {
     throw new Error(
       "HF API key not configured. Please set VITE_HF_API_KEY in .env.local",
     );
@@ -82,7 +91,7 @@ export async function transcribeAudioWithFastAPI(
   const response = await fetch("https://veccode-wish.hf.space/transcribe", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${HF_API_KEY}`,
     },
     body: formData,
   });
@@ -99,6 +108,89 @@ export async function transcribeAudioWithFastAPI(
   const transcript = data.text || data.transcript || "";
   console.log("[FastAPI] Transcription successful:", transcript);
   return transcript;
+}
+
+export type BrowserSpeechOptions = {
+  lang?: string;
+  signal?: AbortSignal;
+};
+
+export async function transcribeWithBrowserSpeechRecognition(
+  options: BrowserSpeechOptions = {},
+): Promise<string> {
+  const SpeechRecognition = getVoiceRecognitionConstructor();
+  if (!SpeechRecognition) {
+    throw new Error("Browser speech recognition is not supported.");
+  }
+
+  const { lang = "en-US", signal } = options;
+
+  return new Promise<string>((resolve, reject) => {
+    const recognition = new SpeechRecognition();
+    let settled = false;
+
+    const cleanup = () => {
+      signal?.removeEventListener("abort", onAbort);
+    };
+
+    const safeResolve = (value: string) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+
+    const safeReject = (reason: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(reason);
+    };
+
+    const onAbort = () => {
+      recognition.stop();
+      safeReject(new Error("Audio capture was cancelled."));
+    };
+
+    recognition.lang = lang;
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event) => {
+      const firstResult = event.results[0];
+      const firstAlternative = firstResult?.[0];
+      safeResolve(firstAlternative?.transcript?.trim() ?? "");
+    };
+
+    recognition.onerror = (event) => {
+      safeReject(new Error(`Speech recognition error: ${event.error}`));
+    };
+
+    recognition.onend = () => {
+      safeResolve("");
+    };
+
+    if (signal?.aborted) {
+      safeReject(new Error("Audio capture was cancelled."));
+      return;
+    }
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    try {
+      recognition.start();
+    } catch (error) {
+      safeReject(
+        error instanceof Error
+          ? error
+          : new Error("Failed to start speech recognition."),
+      );
+    }
+  });
 }
 
 export type CaptureAudioOptions = {
