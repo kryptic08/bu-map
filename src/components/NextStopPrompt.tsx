@@ -16,8 +16,8 @@ export function NextStopPrompt({
   }
 
   return (
-    <section className="pointer-events-none absolute inset-x-0 bottom-0 z-980 flex items-end justify-center bg-linear-to-t from-slate-900/30 to-transparent p-3 md:inset-0 md:items-center md:bg-slate-900/35 md:p-4">
-      <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-slate-300/40 bg-white/95 p-5 text-slate-900 shadow-2xl backdrop-blur-md overlay-enter">
+    <section className="pointer-events-none absolute inset-0 z-[1200] flex items-center justify-center bg-slate-900/35 p-3 md:p-4">
+      <div className="pointer-events-auto flex w-full max-w-sm flex-col rounded-2xl border border-slate-300/40 bg-white/95 p-5 text-slate-900 shadow-[0_38px_120px_-45px_rgba(15,23,42,0.95)] backdrop-blur-md overlay-enter">
         <p className="font-[Sora] text-lg font-semibold">
           You arrived at {destinationLabel}
         </p>
