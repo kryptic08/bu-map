@@ -403,6 +403,13 @@ function App() {
         console.log("[Conversation Voice] Transcribing with FastAPI...");
         try {
           transcript = await transcribeAudioWithFastAPI(audioBlob);
+<<<<<<< HEAD
+=======
+          console.log(
+            "[Voice] Transcription received from FastAPI:",
+            transcript,
+          );
+>>>>>>> 0a5410b5ce4fe90a059284c991cd46c3a840ed81
         } catch (fastApiError) {
           console.warn(
             "[Conversation Voice] FastAPI failed, using browser fallback:",
@@ -415,6 +422,20 @@ function App() {
           } else {
             throw fastApiError;
           }
+<<<<<<< HEAD
+=======
+
+          setVoiceFeedback(
+            "FastAPI unavailable. Switching to browser speech...",
+          );
+          transcript = await transcribeWithBrowserSpeechRecognition({
+            signal: controller.signal,
+          });
+          console.log(
+            "[Voice] Transcription received from browser fallback:",
+            transcript,
+          );
+>>>>>>> 0a5410b5ce4fe90a059284c991cd46c3a840ed81
         }
       } else {
         console.log("[Conversation Voice] Using browser speech recognition");
@@ -432,6 +453,7 @@ function App() {
         error instanceof Error ? error.message : String(error);
       console.error("[Conversation Voice] Error:", error);
 
+<<<<<<< HEAD
       const errorMsg: ConversationMessage = {
         id: `error-${Date.now()}`,
         role: "assistant",
@@ -439,6 +461,40 @@ function App() {
         timestamp: Date.now(),
       };
       setConversationMessages((prev) => [...prev, errorMsg]);
+=======
+      if (
+        errorMessage.includes("NotAllowedError") ||
+        errorMessage.includes("permission")
+      ) {
+        setLocationError(
+          "Microphone permission denied. Please enable microphone access in your browser settings.",
+        );
+      } else if (errorMessage.includes("NotFoundError")) {
+        setLocationError(
+          "No microphone found. Please connect a microphone and try again.",
+        );
+      } else if (errorMessage.includes("HF API key")) {
+        setLocationError(
+          "Voice transcription setup is missing VITE_HF_API_KEY.",
+        );
+      } else if (
+        errorMessage.includes("Speech recognition error: not-allowed")
+      ) {
+        setLocationError(
+          "Microphone permission denied. Please enable microphone access in your browser settings.",
+        );
+      } else if (errorMessage.includes("Speech recognition error: no-speech")) {
+        setLocationError("No speech detected. Please try again.");
+      } else if (
+        errorMessage.includes("Browser speech recognition is not supported")
+      ) {
+        setLocationError(
+          "Voice recognition is not supported in this browser. Try Chrome or Edge.",
+        );
+      } else {
+        setLocationError(`Voice command failed: ${errorMessage}`);
+      }
+>>>>>>> 0a5410b5ce4fe90a059284c991cd46c3a840ed81
     } finally {
       voiceCaptureAbortRef.current = null;
       setIsVoiceListening(false);
@@ -729,7 +785,7 @@ function App() {
   };
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-slate-100 font-[Manrope] text-slate-900">
+    <main className="relative h-[100dvh] w-screen overflow-hidden bg-slate-100 font-[Manrope] text-slate-900">
       <CampusMapView
         mapCenter={MAP_CENTER}
         focusRequest={focusRequest}
@@ -790,6 +846,37 @@ function App() {
         compactLabel={compactLabel}
         fallbackImage={welcomeRouteImage}
       />
+
+      {/* Walk Debugger Un comment this if want to see the fake walking simulation
+      {route ? (
+        <div className="absolute top-20 md:top-4 max-md:landscape:top-4 left-1/2 z-[1000] -translate-x-1/2 rounded-full border border-slate-300 bg-white/90 p-1.5 shadow-lg backdrop-blur-sm pointer-events-auto">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                if (simulationIndex === null) {
+                  setSimulationIndex(0);
+                  setIsSimulationPaused(false);
+                } else {
+                  setIsSimulationPaused(!isSimulationPaused);
+                }
+              }}
+              className="rounded-full bg-slate-800 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
+            >
+              {isSimulationRunning ? "Pause Walk" : "Walk Debugger"}
+            </button>
+            {simulationIndex !== null ? (
+              <button
+                type="button"
+                onClick={() => setSimulationIndex(null)}
+                className="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-500"
+              >
+                Stop
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null} */}
 
       <FloatingActionButtons
         activeEntryMode={activeEntryMode}

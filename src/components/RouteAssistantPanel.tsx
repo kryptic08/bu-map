@@ -35,8 +35,10 @@ export function RouteAssistantPanel({
 
   return (
     <section
-      className={`pointer-events-auto absolute right-0 bottom-0 z-900 flex w-full flex-col overflow-hidden rounded-t-3xl border border-slate-300/30 bg-white/95 p-4 text-slate-900 shadow-2xl backdrop-blur-md overlay-enter transition-[max-height] duration-200 md:top-4 md:right-4 md:bottom-4 md:max-h-[calc(100vh-2rem)] md:w-95 md:rounded-2xl ${
-        isMobileCollapsed ? "max-h-[18vh]" : "max-h-[68vh]"
+      className={`pointer-events-auto absolute right-0 bottom-0 z-[900] flex w-full flex-col overflow-hidden rounded-t-3xl border border-slate-300/30 bg-white/95 p-4 text-slate-900 shadow-[0_38px_120px_-45px_rgba(15,23,42,0.95)] backdrop-blur-md overlay-enter transition-all duration-300 md:top-4 md:right-4 md:bottom-4 md:left-auto md:w-96 md:translate-x-0 md:rounded-2xl max-md:landscape:top-0 max-md:landscape:bottom-0 max-md:landscape:left-0 max-md:landscape:right-auto max-md:landscape:h-[100dvh] max-md:landscape:max-h-[100dvh] max-md:landscape:w-80 max-md:landscape:rounded-none max-md:landscape:rounded-r-2xl max-md:landscape:border-r ${
+        isMobileCollapsed
+          ? "max-h-[15vh] md:max-h-[calc(100vh-2rem)] max-md:landscape:-translate-x-[calc(100%-3.5rem)]"
+          : "max-h-[45vh] md:max-h-[calc(100vh-2rem)] max-md:landscape:translate-x-0"
       }`}
     >
       <header className="mb-3 border-b border-slate-200 pb-3">

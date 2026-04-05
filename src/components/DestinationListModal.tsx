@@ -20,9 +20,9 @@ export function DestinationListModal({
   }
 
   return (
-    <section className="pointer-events-none absolute inset-0 z-[970] flex items-center justify-center bg-slate-950/55 p-4">
-      <div className="pointer-events-auto w-full max-w-xl rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl">
-        <div className="flex items-start justify-between gap-3">
+    <section className="pointer-events-none absolute inset-0 z-[970] flex items-center justify-center bg-slate-950/55 p-3 md:p-4">
+      <div className="pointer-events-auto flex w-full max-w-xl max-h-[90dvh] flex-col rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-3">
           <div>
             <p className="font-[Sora] text-lg font-semibold text-slate-900">
               Destination List
@@ -40,7 +40,7 @@ export function DestinationListModal({
           </button>
         </div>
 
-        <div className="mt-4 grid max-h-[60vh] w-full grid-cols-2 gap-3 overflow-y-auto">
+        <div className="mt-4 grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-y-auto pb-2 max-md:landscape:grid-cols-3">
           {destinations.map((place) => {
             const active =
               destination &&
