@@ -3,6 +3,7 @@ import { divIcon, type LatLngExpression } from "leaflet";
 import { MapPin } from "lucide-react";
 import QRCode from "qrcode";
 import { renderToStaticMarkup } from "react-dom/server";
+import { AiConversationModal } from "./components/AiConversationModal";
 import { CampusMapView } from "./components/CampusMapView";
 import welcomeRouteImage from "./assets/welcome-route.svg";
 import { DestinationListModal } from "./components/DestinationListModal";
@@ -38,6 +39,11 @@ import {
   isHFTranscriptionConfigured,
   transcribeWithBrowserSpeechRecognition,
 } from "./utils/voiceRecognition";
+import {
+  isOpenAIConfigured,
+  processVoiceCommandWithChatGPT,
+  chatWithAI,
+} from "./services/chatgpt";
 import type {
   Destination,
   EntryMode,
@@ -46,6 +52,7 @@ import type {
   PresetDestination,
   RouteInfo,
 } from "./types/navigation";
+import type { ConversationMessage } from "./types/conversation";
 
 const MAP_CENTER: LatLngExpression = [GUARD_HOUSE.lat, GUARD_HOUSE.lon];
 
@@ -80,6 +87,13 @@ function App() {
   const [showDestinationListModal, setShowDestinationListModal] =
     useState(false);
   const voiceCaptureAbortRef = useRef<AbortController | null>(null);
+
+  // AI Conversation state
+  const [showAiConversation, setShowAiConversation] = useState(false);
+  const [conversationMessages, setConversationMessages] = useState<
+    ConversationMessage[]
+  >([]);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
 
   const isShareLinkPublic = useMemo(() => {
     if (PUBLIC_BASE_URL) {
@@ -203,7 +217,7 @@ function App() {
     setVoiceFeedback(null);
   };
 
-  const runAiVoiceCommand = (rawCommand: string) => {
+  const runAiVoiceCommand = async (rawCommand: string) => {
     console.log("[Voice Command] Processing voice input:", rawCommand);
 
     const command = rawCommand.trim();
@@ -213,8 +227,56 @@ function App() {
       return;
     }
 
+    // Use ChatGPT for AI-powered voice command processing if configured
+    if (isOpenAIConfigured()) {
+      console.log("[Voice Command] Processing with ChatGPT AI assistant...");
+      setVoiceFeedback("AI is processing your request...");
+      
+      try {
+        const aiResponse = await processVoiceCommandWithChatGPT(
+          command,
+          PRESET_DESTINATIONS,
+        );
+
+        console.log("[Voice Command] ChatGPT response:", aiResponse);
+        
+        if (aiResponse.destination) {
+          // ChatGPT identified a destination - find and navigate to it
+          const matchedPreset = PRESET_DESTINATIONS.find(
+            (dest) => dest.label === aiResponse.destination,
+          );
+
+          if (matchedPreset) {
+            console.log(
+              "[Voice Command] SUCCESS - AI matched destination:",
+              matchedPreset.label,
+            );
+            setVoiceFeedback(aiResponse.message);
+            setTimeout(() => {
+              applyDestination(matchedPreset);
+              setLocationError(null);
+              setVoiceFeedback(null);
+            }, 1500);
+            return;
+          }
+        }
+
+        // ChatGPT couldn't find a clear destination - show its message
+        console.log("[Voice Command] AI needs clarification:", aiResponse.message);
+        setLocationError(aiResponse.message);
+        setVoiceFeedback(null);
+        return;
+      } catch (error) {
+        console.error("[Voice Command] ChatGPT processing failed:", error);
+        setVoiceFeedback(null);
+        // Fall back to basic matching
+        console.log("[Voice Command] Falling back to basic destination matching");
+      }
+    }
+
+    // Fallback: Basic keyword matching
     console.log(
-      "[Voice Command] Attempting to match against preset destinations",
+      "[Voice Command] Attempting basic match against preset destinations",
     );
     const matchedPreset = resolvePresetFromPrompt(command, PRESET_DESTINATIONS);
 
@@ -230,7 +292,7 @@ function App() {
 
     console.log("[Voice Command] FAILED - No matching destination found");
     setLocationError(
-      "Voice command recognized, but no preset destination was matched.",
+      "Voice command recognized, but no preset destination was matched. Try saying the building name clearly.",
     );
   };
 
@@ -249,130 +311,143 @@ function App() {
     }
   };
 
-  const onToggleVoiceCommand = async () => {
+  const onToggleVoiceCommand = () => {
+    // Open AI conversation modal when voice button is clicked
+    setShowAiConversation(true);
+    setLocationError(null);
+  };
+
+  // Send a text message in the AI conversation
+  const onSendConversationMessage = async (messageText: string) => {
+    const userMessage: ConversationMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: messageText,
+      timestamp: Date.now(),
+    };
+
+    setConversationMessages((prev) => [...prev, userMessage]);
+    setIsAiProcessing(true);
+
+    try {
+      const response = await chatWithAI(messageText, conversationMessages, {
+        currentLocation: startLabel,
+        destination: destination?.label,
+        availableDestinations: PRESET_DESTINATIONS,
+        isNavigating: route !== null,
+      });
+
+      const assistantMessage: ConversationMessage = {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        content: response.message,
+        timestamp: Date.now(),
+      };
+
+      setConversationMessages((prev) => [...prev, assistantMessage]);
+
+      // If AI wants to navigate somewhere, do it
+      if (response.action?.type === "navigate") {
+        const matchedDest = PRESET_DESTINATIONS.find(
+          (dest) => dest.label === response.action?.destination,
+        );
+        if (matchedDest) {
+          setTimeout(() => {
+            applyDestination(matchedDest);
+            setShowAiConversation(false);
+          }, 1500);
+        }
+      }
+    } catch (error) {
+      console.error("[AI Conversation] Error:", error);
+      const errorMessage: ConversationMessage = {
+        id: `error-${Date.now()}`,
+        role: "assistant",
+        content:
+          "Sorry, I encountered an error. Please make sure your OpenAI API key is configured correctly in .env.local",
+        timestamp: Date.now(),
+      };
+      setConversationMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsAiProcessing(false);
+    }
+  };
+
+  // Toggle voice input in conversation mode
+  const onToggleConversationVoice = async () => {
     if (isVoiceListening) {
-      console.log("[Voice] Stopping voice recognition");
+      console.log("[Conversation Voice] Stopping voice recognition");
       stopVoiceRecognition();
       return;
     }
 
-    setLocationError(null);
     setIsVoiceListening(true);
-    setVoiceFeedback("Listening... say where you want to go");
-    console.log("[Voice] Starting voice recognition...");
+    console.log("[Conversation Voice] Starting voice recognition...");
 
     const controller = new AbortController();
     voiceCaptureAbortRef.current = controller;
 
     try {
-      console.log("[Voice] Listening - awaiting user speech...");
-
       const useFastApiTranscription =
         isHFTranscriptionConfigured() && isFastAPIVoiceSupportedInBrowser();
       let transcript = "";
 
       if (useFastApiTranscription) {
-        // Capture audio from microphone for FastAPI transcription.
-        console.log("[Voice] Capturing audio from microphone...");
+        console.log("[Conversation Voice] Capturing audio from microphone...");
         const audioBlob = await captureAudioFromMicrophone({
           maxDurationMs: 4500,
           timesliceMs: 250,
           signal: controller.signal,
         });
-        console.log(
-          "[Voice] Audio captured successfully, size:",
-          audioBlob.size,
-          "bytes",
-        );
 
-        // Send captured audio to FastAPI endpoint.
-        console.log(
-          "[Voice] Sending audio to FastAPI endpoint for transcription...",
-        );
-        setVoiceFeedback("Transcribing your voice...");
+        console.log("[Conversation Voice] Transcribing with FastAPI...");
         try {
           transcript = await transcribeAudioWithFastAPI(audioBlob);
-          console.log("[Voice] Transcription received from FastAPI:", transcript);
         } catch (fastApiError) {
           console.warn(
-            "[Voice] FastAPI transcription failed, attempting browser fallback:",
+            "[Conversation Voice] FastAPI failed, using browser fallback:",
             fastApiError,
           );
-
-          if (!isBrowserSpeechRecognitionSupported()) {
+          if (isBrowserSpeechRecognitionSupported()) {
+            transcript = await transcribeWithBrowserSpeechRecognition({
+              signal: controller.signal,
+            });
+          } else {
             throw fastApiError;
           }
-
-          setVoiceFeedback("FastAPI unavailable. Switching to browser speech...");
-          transcript = await transcribeWithBrowserSpeechRecognition({
-            signal: controller.signal,
-          });
-          console.log(
-            "[Voice] Transcription received from browser fallback:",
-            transcript,
-          );
         }
       } else {
-        console.log(
-          "[Voice] HF key unavailable; using browser speech recognition fallback.",
-        );
-        setVoiceFeedback("Listening in browser...");
+        console.log("[Conversation Voice] Using browser speech recognition");
         transcript = await transcribeWithBrowserSpeechRecognition({
           signal: controller.signal,
         });
-        console.log("[Voice] Transcription received from browser:", transcript);
       }
 
-      // Process the transcribed text to find a matching destination
       if (transcript) {
-        console.log(
-          "[Voice] Processing transcribed text for destination matching...",
-        );
-        setVoiceFeedback("Matching destination...");
-        runAiVoiceCommand(transcript);
-      } else {
-        console.log("[Voice] No transcript returned from FastAPI");
-        setLocationError("No speech detected. Please try again.");
+        console.log("[Conversation Voice] Transcript:", transcript);
+        await onSendConversationMessage(transcript);
       }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error("[Voice] Error during voice recognition:", error);
+      console.error("[Conversation Voice] Error:", error);
 
-      if (
-        errorMessage.includes("NotAllowedError") ||
-        errorMessage.includes("permission")
-      ) {
-        setLocationError(
-          "Microphone permission denied. Please enable microphone access in your browser settings.",
-        );
-      } else if (errorMessage.includes("NotFoundError")) {
-        setLocationError(
-          "No microphone found. Please connect a microphone and try again.",
-        );
-      } else if (errorMessage.includes("HF API key")) {
-        setLocationError("Voice transcription setup is missing VITE_HF_API_KEY.");
-      } else if (errorMessage.includes("Speech recognition error: not-allowed")) {
-        setLocationError(
-          "Microphone permission denied. Please enable microphone access in your browser settings.",
-        );
-      } else if (errorMessage.includes("Speech recognition error: no-speech")) {
-        setLocationError("No speech detected. Please try again.");
-      } else if (
-        errorMessage.includes("Browser speech recognition is not supported")
-      ) {
-        setLocationError(
-          "Voice recognition is not supported in this browser. Try Chrome or Edge.",
-        );
-      } else {
-        setLocationError(`Voice command failed: ${errorMessage}`);
-      }
+      const errorMsg: ConversationMessage = {
+        id: `error-${Date.now()}`,
+        role: "assistant",
+        content: `Voice input error: ${errorMessage}`,
+        timestamp: Date.now(),
+      };
+      setConversationMessages((prev) => [...prev, errorMsg]);
     } finally {
-      console.log("[Voice] Voice recognition ended");
       voiceCaptureAbortRef.current = null;
       setIsVoiceListening(false);
-      setVoiceFeedback(null);
     }
+  };
+
+  const onCloseAiConversation = () => {
+    setShowAiConversation(false);
+    stopVoiceRecognition();
   };
 
   useEffect(() => {
@@ -677,6 +752,17 @@ function App() {
         show={showWelcomeModal}
         onChooseEntryMode={onChooseEntryMode}
         welcomeImage={welcomeRouteImage}
+      />
+
+      <AiConversationModal
+        show={showAiConversation}
+        messages={conversationMessages}
+        isListening={isVoiceListening}
+        isProcessing={isAiProcessing}
+        voiceSupported={voiceRecognitionSupported}
+        onClose={onCloseAiConversation}
+        onSendMessage={onSendConversationMessage}
+        onToggleVoice={onToggleConversationVoice}
       />
 
       <TopDirectionBanner
