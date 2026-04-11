@@ -7,6 +7,7 @@ import { AiConversationModal } from "./components/AiConversationModal";
 import { CampusMapView } from "./components/CampusMapView";
 import welcomeRouteImage from "./assets/welcome-route.svg";
 import { DestinationListModal } from "./components/DestinationListModal";
+import { MobileScannedRouteModal } from "./components/MobileScannedRouteModal";
 import { DestinationPreviewCard } from "./components/DestinationPreviewCard";
 import { FloatingActionButtons } from "./components/FloatingActionButtons";
 import { NextStopPrompt } from "./components/NextStopPrompt";
@@ -30,6 +31,7 @@ import {
   decodePacket,
   encodePacket,
 } from "./utils/routePacket";
+import { isMobileDevice } from "./utils/deviceDetection";
 import {
   transcribeAudioWithOpenAI,
   transcribeAudioWithFastAPI,
@@ -88,6 +90,7 @@ function App() {
   const [showDestinationDetails, setShowDestinationDetails] = useState(false);
   const [showDestinationListModal, setShowDestinationListModal] =
     useState(false);
+  const [showMobileScannedRoute, setShowMobileScannedRoute] = useState(false);
   const voiceCaptureAbortRef = useRef<AbortController | null>(null);
   const vadInstanceRef = useRef<VoiceActivityDetector | null>(null);
 
@@ -220,6 +223,12 @@ function App() {
     }
     setIsVoiceListening(false);
     setVoiceFeedback(null);
+  };
+
+  const onStartMobileNavigation = () => {
+    // Close mobile welcome screen and show the map with route
+    setShowMobileScannedRoute(false);
+    console.log("[Mobile QR] Starting navigation, showing map");
   };
 
   const onChooseEntryMode = (mode: EntryMode) => {
@@ -377,7 +386,47 @@ function App() {
 
       if (transcript) {
         console.log("[VAD] Final transcript:", transcript);
-        await onSendConversationMessage(transcript);
+        
+        // Validate transcript - ignore very short or unclear audio
+        const cleanTranscript = transcript.trim();
+        const wordCount = cleanTranscript.split(/\s+/).filter(word => word.length > 0).length;
+        
+        // Ignore if too short (likely background noise) - require at least 2 words
+        if (cleanTranscript.length < 4 || wordCount < 2) {
+          console.log("[VAD] Transcript too short, ignoring:", cleanTranscript);
+          return;
+        }
+        
+        // Ignore common filler words or unclear audio patterns
+        const fillerPatterns = /^(uh|um|hmm|ah|oh|er|huh|mhm|yeah|yep|nope|okay|ok)\.?$/i;
+        if (fillerPatterns.test(cleanTranscript)) {
+          console.log("[VAD] Filler word detected, ignoring:", cleanTranscript);
+          return;
+        }
+        
+        // Ignore transcripts that are just noise patterns (repeated characters, etc.)
+        const noisePatterns = /^[^\w\s]+$|^(.)\1{4,}$/i;
+        if (noisePatterns.test(cleanTranscript)) {
+          console.log("[VAD] Noise pattern detected, ignoring:", cleanTranscript);
+          return;
+        }
+        
+        // Ignore transcripts with no meaningful letters (must have at least 3 letters)
+        const letterCount = (cleanTranscript.match(/[a-z]/gi) || []).length;
+        if (letterCount < 3) {
+          console.log("[VAD] Too few letters, ignoring:", cleanTranscript);
+          return;
+        }
+        
+        // Ignore transcription prompt text (returned when no clear speech detected)
+        if (cleanTranscript.includes("Navigate to campus location") || 
+            cleanTranscript.includes("Buildings:")) {
+          console.log("[VAD] Transcription prompt detected (no speech), ignoring:", cleanTranscript);
+          return;
+        }
+        
+        // Send valid command to AI
+        await onSendConversationMessage(cleanTranscript);
       } else {
         console.warn("[VAD] No transcript received");
         const warningMsg: ConversationMessage = {
@@ -432,9 +481,9 @@ function App() {
       console.log("[VAD] Starting automatic voice detection...");
       
       const vadConfig: VADConfig = {
-        speechThreshold: 25,
-        silenceDuration: 1500,
-        minSpeechDuration: 800,
+        speechThreshold: 38, // Balanced for accuracy and noise reduction
+        silenceDuration: 1200,
+        minSpeechDuration: 800, // Reduced to capture shorter phrases
         maxRecordingDuration: 15000,
         checkInterval: 100,
       };
@@ -565,7 +614,17 @@ function App() {
       setFocusRequest({ point: startFromPacket, zoom: 19 });
       setRouteError(null);
       setEntryMode("quick");
-      setShowWelcomeModal(false);
+      
+      // Check if mobile device - show mobile-optimized welcome screen
+      const isMobile = isMobileDevice();
+      if (isMobile) {
+        console.log("[QR Scan] Mobile device detected - showing mobile welcome");
+        setShowMobileScannedRoute(true);
+        setShowWelcomeModal(false);
+      } else {
+        console.log("[QR Scan] Desktop device - loading route directly");
+        setShowWelcomeModal(false);
+      }
     } catch {
       setRouteError("Shared route packet is invalid or unsupported.");
     }
@@ -813,6 +872,13 @@ function App() {
         onChooseEntryMode={onChooseEntryMode}
         onOpenAiConversation={onOpenAiConversationFromWelcome}
         welcomeImage={welcomeRouteImage}
+      />
+
+      <MobileScannedRouteModal
+        show={showMobileScannedRoute}
+        startLabel={startLabel}
+        destinationLabel={destination?.label || "Campus Location"}
+        onStartNavigation={onStartMobileNavigation}
       />
 
       <AiConversationModal

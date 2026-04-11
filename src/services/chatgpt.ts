@@ -40,34 +40,34 @@ export async function processVoiceCommandWithChatGPT(
   // Get complete campus directory for detailed room/building knowledge
   const campusDirectory = getCampusDirectoryText();
 
-  const systemPrompt = `You are an AI navigation assistant for Bicol University Polangui campus. Your role is to help users navigate to campus locations and provide information about specific rooms and buildings.
+  const systemPrompt = `You are an AI navigation assistant for Bicol University Polangui campus. Match user voice commands to campus locations.
 
 ${campusDirectory}
 
 Main Navigation Destinations (mappable locations):
 ${destinationList}
 
-When a user provides a voice command:
-1. Determine if they want to go to a specific location
-2. If they mention a specific room (like "SB-11", "Computer Lab 3", "Library"), acknowledge it and guide them to the appropriate building
-3. Match their request to one of the main navigation destinations above
-4. Provide helpful information about what's in that building or room
-5. If the match is clear, respond with the exact destination label
-6. If unclear, ask for clarification or provide helpful suggestions
+IMPORTANT: Keep messages SHORT (1 sentence max).
 
-Your response MUST be a JSON object with this exact structure:
+LIBRARY RULE: When user mentions "library", "lib", "librarian", "books", or "study" - ALWAYS set destination to "Salceda Building" because the library is on its 2nd floor.
+
+Your response MUST be JSON:
 {
   "destination": "exact destination label or null",
-  "message": "helpful message to the user",
+  "message": "brief message (1 sentence)",
   "confidence": "high" | "medium" | "low"
 }
 
 Examples:
-- User: "take me to the gym" → {"destination": "BUP GYM", "message": "Navigating to BUP GYM. The gym has the Alumni Office on the first floor and Physical Plant Office on the second floor.", "confidence": "high"}
-- User: "where is computer lab 3" → {"destination": "Center for Computer and Engineering Studies / Salceda Building", "message": "Computer Lab 3 (CL3) is on the second floor of the Center for Computer and Engineering Studies. I'll navigate you there.", "confidence": "high"}
-- User: "I need to go to the library" → {"destination": "Center for Computer and Engineering Studies / Salceda Building", "message": "The library is on the second floor of Salceda Building. Room 1 has the Circulation and Reading Section, and Room 2 has the General Reference Section.", "confidence": "high"}
-- User: "take me to the nursing department" → {"destination": "Center for Computer and Engineering Studies / Salceda Building", "message": "The Nursing Department has the simulation room, skills laboratory, and various specialized rooms. I'll guide you there.", "confidence": "high"}
-- User: "where is SB-11" → {"destination": "Center for Computer and Engineering Studies / Salceda Building", "message": "SB-11 is the General/Analytical Chemistry Laboratory on the first floor of Salceda Building.", "confidence": "high"}`;
+- "take me to gym" → {"destination": "BUP GYM", "message": "Navigating to BUP GYM.", "confidence": "high"}
+- "canteen" or "food" → {"destination": "BUP Canteen", "message": "Taking you to the canteen.", "confidence": "high"}
+- "nursing department" → {"destination": "Nursing Department", "message": "Navigating to Nursing.", "confidence": "high"}
+- "registrar" → {"destination": "Registrar", "message": "Going to registrar.", "confidence": "high"}
+- "admin building" → {"destination": "Administrative Building", "message": "Going to admin building.", "confidence": "high"}
+- "library" or "books" → {"destination": "Salceda Building", "message": "Library is on 2nd floor.", "confidence": "high"}
+- "computer lab 3" or "CL3" → {"destination": "Center for Computer and Engineering Studies / Salceda Building 2", "message": "Navigating to CL3.", "confidence": "high"}
+
+Be direct. No extra explanations.`;
 
   const userMessage = `User voice command: "${voiceCommand}"`;
 
@@ -85,7 +85,7 @@ Examples:
           { role: "user", content: userMessage },
         ],
         temperature: 0.3,
-        max_tokens: 200,
+        max_tokens: 80, // Reduced for brief responses
         response_format: { type: "json_object" },
       }),
     });
@@ -190,28 +190,33 @@ ${context.destination ? `Current destination: ${context.destination}` : ""}
 ${context.isNavigating ? "User is currently navigating to a destination." : ""}
 ${routeDetails}
 
-You can:
-1. Answer questions about specific rooms, offices, and facilities (e.g., "Where is Computer Lab 3?", "What's in the Nursing Department?")
-2. Provide directions and route information to buildings
-3. Give detailed information about what's available in each building and floor
-4. Help users find specific rooms by name or code (e.g., "SB-11", "ECB-14", "CL3")
-5. Provide details about the current route (distance, duration, turn-by-turn directions)
-6. Help with navigation questions like "How far is it?", "What's the next turn?", "How long will it take?"
-7. Have casual conversation about campus life and facilities
+IMPORTANT: Keep ALL responses SHORT and DIRECT. Maximum 1-2 sentences. No long explanations.
+
+LIBRARY RULE: When user mentions "library", "lib", "librarian", "books", or "study" - ALWAYS navigate to "Salceda Building" because the library is located on its 2nd floor.
 
 When a user wants to navigate somewhere NEW, respond with JSON that includes an action:
-{"message": "I'll navigate you to [destination]. The route is approximately X km and will take about Y minutes. [Additional helpful info about rooms/facilities in that building]", "action": {"type": "navigate", "destination": "exact destination label"}}
+{"message": "Navigating to [destination]. [Distance] away, about [time] minutes.", "action": {"type": "navigate", "destination": "exact destination label"}}
 
-When user asks about a SPECIFIC ROOM or OFFICE, provide helpful details and navigate to the building:
-{"message": "Computer Lab 3 (CL3) is on the second floor of the Center for Computer and Engineering Studies. I'll navigate you to the building now.", "action": {"type": "navigate", "destination": "Center for Computer and Engineering Studies / Salceda Building"}}
+When user asks about a SPECIFIC ROOM or OFFICE, provide brief details and navigate:
+{"message": "[Room] is on [floor] floor. Navigating there now.", "action": {"type": "navigate", "destination": "exact destination label"}}
 
-When user asks about the CURRENT route, provide details using the route information above:
-{"message": "You're heading to [destination]. It's X km away and will take about Y minutes. Your next turn is: [instruction]"}
+When user asks about the CURRENT route, provide brief details:
+{"message": "[Distance] to [destination], about [time] minutes. Next: [instruction]"}
 
-For general questions about facilities, rooms, or campus layout, respond normally with:
-{"message": "your helpful and detailed response"}
+For general questions:
+{"message": "brief answer in 1 sentence"}
 
-Be friendly, helpful, and conversational. When mentioning rooms or buildings, include helpful context like floor numbers and what the room is used for. Keep responses concise but informative.`;
+Examples:
+- "canteen" or "food" → {"message": "Navigating to BUP Canteen.", "action": {"type": "navigate", "destination": "BUP Canteen"}}
+- "nursing department" → {"message": "Going to Nursing Department.", "action": {"type": "navigate", "destination": "Nursing Department"}}
+- "registrar" → {"message": "Navigating to Registrar.", "action": {"type": "navigate", "destination": "Registrar"}}
+- "admin building" → {"message": "Navigating to Administrative Building.", "action": {"type": "navigate", "destination": "Administrative Building"}}
+- "take me to gym" → {"message": "Navigating to BUP GYM.", "action": {"type": "navigate", "destination": "BUP GYM"}}
+- "library" or "books" → {"message": "Library on 2nd floor Salceda. Navigating now.", "action": {"type": "navigate", "destination": "Salceda Building"}}
+- "computer lab 3" → {"message": "CL3 on 2nd floor Salceda. Navigating now.", "action": {"type": "navigate", "destination": "Center for Computer and Engineering Studies / Salceda Building 2"}}
+- "how far?" → {"message": "290m to your destination, about 2 minutes walking."}
+
+Be direct and concise. No greetings, no extra details unless asked.`;
 
   // Convert conversation history to OpenAI format
   const messages = [
@@ -233,8 +238,8 @@ Be friendly, helpful, and conversational. When mentioning rooms or buildings, in
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: messages,
-        temperature: 0.7,
-        max_tokens: 300,
+        temperature: 0.3, // Lower temperature for more focused responses
+        max_tokens: 100, // Reduced from 300 to force concise responses
         response_format: { type: "json_object" },
       }),
     });

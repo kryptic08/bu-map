@@ -98,10 +98,6 @@ export async function transcribeAudioWithOpenAI(
   formData.append("file", audioBlob, "audio.webm");
   formData.append("model", "gpt-4o-mini-transcribe");
   formData.append("response_format", "text");
-  formData.append(
-    "prompt",
-    "Navigate to campus location. Buildings: BUP Gym, Computer Studies Department, Library, Canteen, Admin Building."
-  );
   formData.append("language", "en");
 
   console.log(
@@ -310,7 +306,15 @@ export async function captureAudioFromMicrophone(
   const { maxDurationMs = 4500, timesliceMs = 250, signal } = options;
 
   console.log("[Microphone] Requesting microphone access...");
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const stream = await navigator.mediaDevices.getUserMedia({ 
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      sampleRate: 48000,
+      channelCount: 1
+    } 
+  });
   console.log("[Microphone] Microphone access granted");
 
   if (signal?.aborted) {

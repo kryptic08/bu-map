@@ -117,7 +117,7 @@ export async function* transcribeAudioStreamWithOpenAI(
 
   const {
     model = "gpt-4o-mini-transcribe",
-    prompt = "Navigate to campus location. Buildings: BUP Gym, Computer Studies, Library, Canteen.",
+    prompt,
     language = "en",
   } = options;
 
