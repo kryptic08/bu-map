@@ -38,7 +38,7 @@ export function FloatingActionButtons({
 }) {
   return (
     <aside
-      className={`pointer-events-none absolute right-4 z-[1050] md:w-auto md:bottom-6 md:top-auto md:right-auto md:left-4 max-md:landscape:w-auto max-md:landscape:bottom-auto max-md:landscape:top-4 max-md:landscape:left-auto max-md:landscape:right-4 transition-all duration-300 ${
+      className={`pointer-events-none absolute right-4 z-[900] md:w-auto md:bottom-6 md:top-auto md:right-auto md:left-4 max-md:landscape:w-auto max-md:landscape:bottom-auto max-md:landscape:top-4 max-md:landscape:left-auto max-md:landscape:right-4 transition-all duration-300 ${
         hasDestination
           ? isPreviewCardCollapsed
             ? "bottom-24 md:bottom-6"

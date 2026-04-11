@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Command Diagnostic Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 2rem;
+        }
+        .status {
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            font-family: monospace;
+        }
+        .success { background: #d1fae5; color: #065f46; border: 2px solid #10b981; }
+        .error { background: #fee2e2; color: #991b1b; border: 2px solid #ef4444; }
+        .warning { background: #fef3c7; color: #92400e; border: 2px solid #f59e0b; }
+        .info { background: #dbeafe; color: #1e40af; border: 2px solid #3b82f6; }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 0.5rem 0.5rem 0.5rem 0;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+        button:active { transform: translateY(0); }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .test-section {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #f9fafb;
+            border-radius: 10px;
+            border: 2px solid #e5e7eb;
+        }
+        .test-section h2 {
+            color: #374151;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+        }
+        #transcript {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #e5e7eb;
+            min-height: 60px;
+            font-size: 1.125rem;
+            color: #1f2937;
+        }
+        .recording {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        li:last-child {
+            border-bottom: none;
+        }
+        .check { color: #10b981; font-weight: bold; }
+        .cross { color: #ef4444; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Voice Command Diagnostic Tool</h1>
+        <p style="color: #6b7280; margin-bottom: 2rem;">Test your microphone and voice recognition capabilities</p>
+
+        <!-- Browser Capabilities -->
+        <div class="test-section">
+            <h2>1. Browser Capabilities Check</h2>
+            <ul id="capabilities"></ul>
+        </div>
+
+        <!-- Microphone Test -->
+        <div class="test-section">
+            <h2>2. Microphone Access Test</h2>
+            <button onclick="testMicrophone()">Request Microphone Access</button>
+            <div id="micStatus"></div>
+        </div>
+
+        <!-- Browser Speech Recognition -->
+        <div class="test-section">
+            <h2>3. Browser Speech Recognition Test</h2>
+            <button onclick="testBrowserSpeech()" id="browserSpeechBtn">Start Browser Speech Test</button>
+            <div id="browserSpeechStatus"></div>
+            <div id="transcript"></div>
+        </div>
+
+        <!-- FastAPI Test -->
+        <div class="test-section">
+            <h2>4. FastAPI Transcription Test</h2>
+            <button onclick="testFastAPI()" id="fastAPIBtn">Test FastAPI Endpoint</button>
+            <div id="fastAPIStatus"></div>
+        </div>
+
+        <!-- Environment Check -->
+        <div class="test-section">
+            <h2>5. Environment Information</h2>
+            <ul id="envInfo"></ul>
+        </div>
+    </div>
+
+    <script>
+        // Check browser capabilities
+        function checkCapabilities() {
+            const capabilities = document.getElementById('capabilities');
+            const checks = [
+                { name: 'HTTPS or Localhost', check: location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1' },
+                { name: 'MediaRecorder API', check: typeof MediaRecorder !== 'undefined' },
+                { name: 'getUserMedia API', check: !!(navigator.mediaDevices?.getUserMedia) },
+                { name: 'Web Speech API', check: 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window },
+                { name: 'Fetch API', check: typeof fetch !== 'undefined' },
+                { name: 'FormData API', check: typeof FormData !== 'undefined' },
+            ];
+
+            capabilities.innerHTML = checks.map(({name, check}) => 
+                `<li><span class="${check ? 'check' : 'cross'}">${check ? '✅' : '❌'}</span> ${name}</li>`
+            ).join('');
+        }
+
+        // Test microphone access
+        async function testMicrophone() {
+            const status = document.getElementById('micStatus');
+            status.innerHTML = '<div class="info">Requesting microphone permission...</div>';
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log('Microphone stream:', stream);
+                
+                // Test recording
+                const mediaRecorder = new MediaRecorder(stream);
+                const chunks = [];
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    chunks.push(e.data);
+                    console.log('Audio chunk received:', e.data.size, 'bytes');
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
+                    console.log('Recording complete. Blob size:', blob.size, 'bytes');
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    if (blob.size > 0) {
+                        status.innerHTML = `
+                            <div class="success">
+                                ✅ Microphone access granted!<br>
+                                Recording successful: ${blob.size} bytes captured<br>
+                                MIME type: ${mediaRecorder.mimeType}
+                            </div>
+                        `;
+                    } else {
+                        status.innerHTML = '<div class="error">❌ No audio captured. Please check your microphone.</div>';
+                    }
+                };
+
+                mediaRecorder.onerror = (e) => {
+                    console.error('MediaRecorder error:', e);
+                    status.innerHTML = `<div class="error">❌ Recording error: ${e.error || e.message}</div>`;
+                };
+
+                mediaRecorder.start(250);
+                status.innerHTML = '<div class="warning recording">🎤 Recording for 3 seconds... Please speak!</div>';
+                
+                setTimeout(() => {
+                    mediaRecorder.stop();
+                }, 3000);
+
+            } catch (error) {
+                console.error('Microphone error:', error);
+                let message = error.message;
+                
+                if (error.name === 'NotAllowedError') {
+                    message = 'Permission denied. Please allow microphone access and try again.';
+                } else if (error.name === 'NotFoundError') {
+                    message = 'No microphone found. Please connect a microphone.';
+                } else if (error.name === 'NotReadableError') {
+                    message = 'Microphone is already in use by another application.';
+                }
+                
+                status.innerHTML = `<div class="error">❌ ${message}</div>`;
+            }
+        }
+
+        // Test browser speech recognition
+        function testBrowserSpeech() {
+            const status = document.getElementById('browserSpeechStatus');
+            const transcript = document.getElementById('transcript');
+            const btn = document.getElementById('browserSpeechBtn');
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                status.innerHTML = '<div class="error">❌ Web Speech API not supported in this browser. Try Chrome or Edge.</div>';
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.continuous = false;
+            recognition.interimResults = true;
+
+            recognition.onstart = () => {
+                status.innerHTML = '<div class="info recording">🎤 Listening... Speak now!</div>';
+                transcript.textContent = 'Waiting for speech...';
+                btn.disabled = true;
+            };
+
+            recognition.onresult = (event) => {
+                const results = Array.from(event.results);
+                const transcriptText = results
+                    .map(result => result[0].transcript)
+                    .join(' ');
+                
+                transcript.textContent = transcriptText || 'No speech detected';
+                console.log('Speech result:', transcriptText, 'Final:', event.results[0]?.isFinal);
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                let message = event.error;
+                
+                if (event.error === 'not-allowed') {
+                    message = 'Microphone permission denied';
+                } else if (event.error === 'no-speech') {
+                    message = 'No speech detected. Please try again.';
+                } else if (event.error === 'network') {
+                    message = 'Network error. Check your internet connection.';
+                }
+                
+                status.innerHTML = `<div class="error">❌ Error: ${message}</div>`;
+                btn.disabled = false;
+            };
+
+            recognition.onend = () => {
+                status.innerHTML = '<div class="success">✅ Speech recognition completed</div>';
+                btn.disabled = false;
+            };
+
+            try {
+                recognition.start();
+            } catch (error) {
+                status.innerHTML = `<div class="error">❌ Failed to start: ${error.message}</div>`;
+                btn.disabled = false;
+            }
+        }
+
+        // Test FastAPI endpoint
+        async function testFastAPI() {
+            const status = document.getElementById('fastAPIStatus');
+            const btn = document.getElementById('fastAPIBtn');
+            const url = 'https://veccode-wish.hf.space/transcribe';
+            
+            status.innerHTML = '<div class="info">Testing FastAPI endpoint...</div>';
+            btn.disabled = true;
+
+            try {
+                // First, test if endpoint is reachable
+                console.log('Testing endpoint:', url);
+                const response = await fetch(url, {
+                    method: 'OPTIONS',
+                });
+                
+                console.log('OPTIONS response:', response.status);
+                
+                status.innerHTML = `
+                    <div class="success">
+                        ✅ FastAPI endpoint is reachable!<br>
+                        Status: ${response.status}<br>
+                        URL: ${url}<br>
+                        <small>Note: Actual transcription requires audio file + API key</small>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('FastAPI test error:', error);
+                status.innerHTML = `
+                    <div class="error">
+                        ❌ FastAPI endpoint test failed<br>
+                        Error: ${error.message}<br>
+                        URL: ${url}<br>
+                        <small>This could be CORS, network, or endpoint unavailability</small>
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // Display environment info
+        function showEnvironmentInfo() {
+            const envInfo = document.getElementById('envInfo');
+            const info = [
+                { name: 'Browser', value: navigator.userAgent.match(/(Chrome|Firefox|Safari|Edge)\/[\d.]+/)?.[0] || 'Unknown' },
+                { name: 'Protocol', value: location.protocol },
+                { name: 'Hostname', value: location.hostname },
+                { name: 'Port', value: location.port || 'default' },
+                { name: 'Language', value: navigator.language },
+                { name: 'Platform', value: navigator.platform },
+                { name: 'Online', value: navigator.onLine ? 'Yes' : 'No' },
+            ];
+
+            envInfo.innerHTML = info.map(({name, value}) => 
+                `<li><strong>${name}:</strong> ${value}</li>`
+            ).join('');
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            checkCapabilities();
+            showEnvironmentInfo();
+        });
+    </script>
+</body>
+</html>

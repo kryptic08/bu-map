@@ -46,8 +46,8 @@ export function AiConversationModal({
   };
 
   return (
-    <section className="pointer-events-none absolute inset-0 z-1000 flex items-end justify-center bg-slate-950/70 p-4 md:items-center">
-      <div className="pointer-events-auto relative flex h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-cyan-100/70 bg-white shadow-[0_38px_120px_-45px_rgba(15,23,42,0.95)] md:h-150">
+    <section className="pointer-events-none absolute inset-0 z-[1000] flex items-end justify-center bg-slate-950/70 p-0 sm:p-4 md:items-center">
+      <div className="pointer-events-auto relative flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-none border-0 sm:border border-cyan-100/70 bg-white shadow-[0_38px_120px_-45px_rgba(15,23,42,0.95)] sm:h-[90vh] sm:rounded-3xl md:h-[600px]">
         {/* Header */}
         <div className="relative border-b border-slate-200 bg-linear-to-r from-cyan-500 to-sky-600 px-5 py-4">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.2),transparent_50%)]" />
@@ -88,9 +88,9 @@ export function AiConversationModal({
                 Hello! I'm your AI campus guide
               </p>
               <p className="max-w-sm text-sm text-slate-600">
-                Ask me anything about navigating Bicol University campus. You can
-                ask for directions, building information, or any campus-related
-                questions.
+                Ask me anything about navigating Bicol University campus. You
+                can ask for directions, building information, or any
+                campus-related questions.
               </p>
               <div className="mt-6 space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -112,9 +112,7 @@ export function AiConversationModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() =>
-                    onSendMessage("What buildings are available?")
-                  }
+                  onClick={() => onSendMessage("What buildings are available?")}
                   className="block w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-left text-sm text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50"
                 >
                   "What buildings are available?"
@@ -158,7 +156,9 @@ export function AiConversationModal({
                         <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500 [animation-delay:-0.15s]"></span>
                         <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500"></span>
                       </div>
-                      <span className="text-xs text-slate-500">AI is thinking...</span>
+                      <span className="text-xs text-slate-500">
+                        AI is thinking...
+                      </span>
                     </div>
                   </div>
                 </div>
