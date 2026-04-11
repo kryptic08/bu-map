@@ -31,6 +31,7 @@ export type RoutePacket = {
 
 export type PresetDestination = Destination & {
   image: string;
+  thumbnail?: string;
   floorPlans?: { label: string; image: string }[];
   floorDirectory?: {
     floorLabel: string;

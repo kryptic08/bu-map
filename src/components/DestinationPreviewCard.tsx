@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { QrPreviewModal } from "./QrPreviewModal";
 import type { Destination, PresetDestination } from "../types/navigation";
 
 type DirectoryItem = NonNullable<
@@ -15,6 +16,8 @@ type DestinationPreviewCardProps = {
   onToggleDestinationDetails: () => void;
   compactLabel: (label: string) => string;
   fallbackImage: string;
+  qrCodeDataUrl?: string | null;
+  onCopyShareLink?: () => void;
 };
 
 export function DestinationPreviewCard({
@@ -26,10 +29,17 @@ export function DestinationPreviewCard({
   onToggleDestinationDetails,
   compactLabel,
   fallbackImage,
-}: DestinationPreviewCardProps) {
+  qrCodeDataUrl,
+  onCopyShareLink,
+  isCollapsed = false,
+  onToggleCollapse,
+}: DestinationPreviewCardProps & {
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+}) {
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedFloorIndex, setSelectedFloorIndex] = useState(0);
+  const [showQrModal, setShowQrModal] = useState(false);
   const [selectedDirectoryItemLabel, setSelectedDirectoryItemLabel] = useState<
     string | null
   >(null);
@@ -81,20 +91,30 @@ export function DestinationPreviewCard({
     activeDirectoryItems.find(
       (item) => item.label === selectedDirectoryItemLabel,
     ) ?? null;
-  const previewImageSrc =
+  const cardImageSrc =
+    selectedPresetDestination?.thumbnail ??
+    selectedPresetDestination?.image ??
+    fallbackImage;
+  const fullscreenImageSrc =
     activeFloorPlan?.image ?? selectedPresetDestination?.image ?? fallbackImage;
   const previewLabel = compactLabel(destination.label);
 
   return (
     <>
+      <QrPreviewModal
+        show={showQrModal}
+        qrCodeDataUrl={qrCodeDataUrl ?? null}
+        onClose={() => setShowQrModal(false)}
+        onCopyShareLink={onCopyShareLink ?? (() => {})}
+      />
       <section
-        className={`pointer-events-none absolute z-[900] overlay-enter transition-all duration-300 md:left-4 md:right-auto md:w-[420px] max-md:landscape:right-3 max-md:landscape:left-auto max-md:landscape:w-80 ${
+        className={`pointer-events-none fixed z-[900] overlay-enter transition-all duration-300 md:absolute md:left-4 md:right-auto md:w-[420px] max-md:landscape:right-3 max-md:landscape:left-auto max-md:landscape:w-80 ${
           showTopDirectionBanner
-            ? "top-24 max-md:landscape:top-20"
-            : "top-3 md:top-4 max-md:landscape:top-4"
-        } left-3 right-3`}
+            ? "md:top-24 max-md:landscape:top-20"
+            : "md:top-4 max-md:landscape:top-4"
+        } left-0 right-0 bottom-0 md:bottom-auto max-md:top-auto`}
       >
-        <div className="pointer-events-auto flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur-sm md:p-4">
+        <div className="pointer-events-auto flex flex-col gap-2 rounded-t-3xl md:rounded-2xl border border-slate-200 md:border-slate-300/30 bg-white/95 p-5 md:p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] md:shadow-xl backdrop-blur-md">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -109,7 +129,7 @@ export function DestinationPreviewCard({
 
             <button
               type="button"
-              onClick={() => setIsCollapsed(!isCollapsed)}
+              onClick={onToggleCollapse}
               className="rounded-lg border border-slate-200 bg-slate-50 p-1.5 text-slate-600 transition hover:bg-slate-200"
               aria-label={isCollapsed ? "Expand preview" : "Collapse preview"}
             >
@@ -128,30 +148,13 @@ export function DestinationPreviewCard({
                 : "max-h-[35vh] md:max-h-[60vh] opacity-100"
             }`}
           >
-            {floorPlans.length > 1 ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {floorPlans.map((floorPlan, index) => (
-                  <button
-                    key={floorPlan.label}
-                    type="button"
-                    onClick={() => setSelectedFloorIndex(index)}
-                    className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
-                      selectedFloorIndex === index
-                        ? "border-blue-500 bg-blue-600 text-white"
-                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {floorPlan.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            <img
-              src={previewImageSrc}
-              alt={`${previewLabel} preview`}
-              className="mt-1 block h-[16vh] min-h-[80px] max-h-44 w-full rounded-lg border border-slate-200 object-cover md:h-56 max-md:landscape:h-24 max-md:landscape:min-h-[60px]"
-            />
+            <div className="relative mt-1 block h-[16vh] min-h-[80px] max-h-44 w-full md:h-56 max-md:landscape:h-24 max-md:landscape:min-h-[60px]">
+              <img
+                src={cardImageSrc}
+                alt={`${previewLabel} preview`}
+                className="absolute inset-0 h-full w-full rounded-lg border border-slate-200 object-cover"
+              />
+            </div>
             <p className="mt-1.5 text-sm font-semibold text-slate-900 md:mt-2">
               {previewLabel}
             </p>
@@ -160,13 +163,13 @@ export function DestinationPreviewCard({
                 "Destination loaded from a shared route. Choose a quick destination to view local details."}
             </p>
 
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setIsFullscreenOpen(true)}
                 className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
               >
-                Full screen
+                View Floorplan
               </button>
 
               <button
@@ -175,6 +178,14 @@ export function DestinationPreviewCard({
                 className="hidden rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 md:inline-block"
               >
                 {showDestinationDetails ? "Hide details" : "View details"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowQrModal(true)}
+                className="md:hidden rounded-lg bg-blue-100 border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-200"
+              >
+                Share QR
               </button>
             </div>
 
@@ -199,39 +210,59 @@ export function DestinationPreviewCard({
 
       {isFullscreenOpen ? (
         <section
-          className="pointer-events-auto absolute inset-0 z-[1100] flex items-center justify-center bg-slate-950/90 p-4"
+          className="pointer-events-auto absolute inset-0 z-[1100] flex items-center justify-center bg-slate-950/55 p-4"
           onClick={() => setIsFullscreenOpen(false)}
           aria-label="Fullscreen destination preview"
         >
           <div
-            className="w-full max-w-7xl rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl md:p-4"
+            className="flex flex-col w-full h-full max-w-7xl rounded-xl border border-blue-200 bg-white p-3 shadow-2xl md:p-4"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-slate-100 md:text-base">
-                {activeFloorPlan?.label
-                  ? `${previewLabel} - ${activeFloorPlan.label}`
-                  : previewLabel}
-              </p>
+            <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <p className="text-sm font-semibold text-slate-900 md:text-base">
+                  {activeFloorPlan?.label
+                    ? `${previewLabel} - ${activeFloorPlan.label}`
+                    : previewLabel}
+                </p>
+                {floorPlans.length > 1 ? (
+                  <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+                    {floorPlans.map((floorPlan, index) => (
+                      <button
+                        key={floorPlan.label}
+                        type="button"
+                        onClick={() => setSelectedFloorIndex(index)}
+                        className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                          selectedFloorIndex === index
+                            ? "bg-white text-blue-700 shadow-sm border border-slate-200/50"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {floorPlan.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={() => setIsFullscreenOpen(false)}
-                className="rounded-lg border border-slate-500 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-slate-800"
+                className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100"
               >
                 Close
               </button>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[280px_1fr]">
-              <aside className="rounded-lg border border-slate-700 bg-slate-800/80 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-cyan-200">
+            <div className="grid gap-3 md:grid-cols-[280px_1fr] min-h-0 flex-1">
+              <aside className="flex flex-col min-h-0 rounded-lg border border-cyan-100 bg-cyan-50/50 p-3">
+                <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-cyan-800">
                   Rooms and Offices
                 </p>
-                <p className="mt-1 text-[11px] text-slate-300">
+                <p className="shrink-0 mt-1 text-[11px] text-cyan-700">
                   {activeFloorLabel}
                 </p>
 
-                <ul className="mt-2 max-h-[58vh] space-y-1.5 overflow-y-auto pr-1 text-xs text-slate-100">
+                <ul className="mt-2 flex-1 space-y-1.5 overflow-y-auto pr-1 text-xs text-slate-800 custom-scrollbar">
                   {activeDirectoryItems.map((item) => {
                     const isActive = selectedDirectoryItemLabel === item.label;
 
@@ -244,8 +275,8 @@ export function DestinationPreviewCard({
                           }
                           className={`w-full rounded-md border px-2 py-1.5 text-left transition ${
                             isActive
-                              ? "border-cyan-400 bg-cyan-500/20 text-cyan-100"
-                              : "border-slate-700 bg-slate-900/65 text-slate-100 hover:bg-slate-800"
+                              ? "border-blue-500 bg-blue-600 text-white shadow-md"
+                              : "border-slate-200 bg-white text-slate-800 shadow-sm hover:border-blue-400 hover:bg-blue-50"
                           }`}
                         >
                           {item.label}
@@ -256,43 +287,37 @@ export function DestinationPreviewCard({
                 </ul>
               </aside>
 
-              <div className="rounded-lg border border-slate-700 bg-slate-950 p-2">
-                <div className="relative overflow-auto rounded-md">
-                  <img
-                    src={previewImageSrc}
-                    alt={`${previewLabel} full screen preview`}
-                    className="block w-full rounded-md"
-                  />
-
-                  <svg
-                    className="pointer-events-none absolute inset-0 h-full w-full"
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                    aria-hidden="true"
-                  >
+              <div className="flex flex-col min-h-0 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div className="relative flex-1 min-h-0 overflow-auto md:overflow-hidden md:flex md:items-center md:justify-center rounded-md bg-white border border-slate-100 shadow-sm custom-scrollbar">
+                  <div className="relative max-w-full">
+                    <img
+                      src={fullscreenImageSrc}
+                      alt={`${previewLabel} full screen preview`}
+                      className="block w-full max-w-full rounded-md md:max-h-full md:w-auto"
+                      style={{ maxHeight: "calc(100vh - 200px)" }}
+                    />
                     {selectedDirectoryItem ? (
                       <>
-                        <circle
-                          cx={selectedDirectoryItem.marker[0]}
-                          cy={selectedDirectoryItem.marker[1]}
-                          r="1.7"
-                          fill="#f97316"
+                        <div
+                          className="absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600 shadow-[0_0_0_2px_rgba(255,255,255,1)]"
+                          style={{
+                            left: `${selectedDirectoryItem.marker[0]}%`,
+                            top: `${selectedDirectoryItem.marker[1]}%`,
+                          }}
                         />
-                        <circle
-                          cx={selectedDirectoryItem.marker[0]}
-                          cy={selectedDirectoryItem.marker[1]}
-                          r="3.2"
-                          fill="none"
-                          stroke="#fb923c"
-                          strokeWidth="0.5"
-                          opacity="0.8"
+                        <div
+                          className="absolute z-10 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-blue-500 bg-blue-500/20"
+                          style={{
+                            left: `${selectedDirectoryItem.marker[0]}%`,
+                            top: `${selectedDirectoryItem.marker[1]}%`,
+                          }}
                         />
                       </>
                     ) : null}
-                  </svg>
+                  </div>{" "}
                 </div>
 
-                <p className="mt-2 text-xs text-slate-300">
+                <p className="shrink-0 mt-2 text-xs text-slate-600">
                   {selectedDirectoryItem
                     ? `Pinned location: ${selectedDirectoryItem.label}`
                     : "Click a room or office on the left to pin its location on the map."}

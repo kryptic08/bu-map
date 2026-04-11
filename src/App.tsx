@@ -84,6 +84,7 @@ function App() {
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const [showDestinationDetails, setShowDestinationDetails] = useState(false);
+  const [isPreviewCardCollapsed, setIsPreviewCardCollapsed] = useState(false);
   const [showDestinationListModal, setShowDestinationListModal] =
     useState(false);
   const voiceCaptureAbortRef = useRef<AbortController | null>(null);
@@ -200,6 +201,7 @@ function App() {
   const applyDestination = (nextDestination: Destination) => {
     setDestination(nextDestination);
     setShowDestinationDetails(true);
+    setIsPreviewCardCollapsed(false);
     setLocationError(null);
     setFocusRequest({ point: nextDestination, zoom: 17 });
     setSimulationIndex(null);
@@ -217,6 +219,7 @@ function App() {
     setVoiceFeedback(null);
   };
 
+  // @ts-ignore - Keeping runAiVoiceCommand for future implementation
   const runAiVoiceCommand = async (rawCommand: string) => {
     console.log("[Voice Command] Processing voice input:", rawCommand);
 
@@ -231,7 +234,7 @@ function App() {
     if (isOpenAIConfigured()) {
       console.log("[Voice Command] Processing with ChatGPT AI assistant...");
       setVoiceFeedback("AI is processing your request...");
-      
+
       try {
         const aiResponse = await processVoiceCommandWithChatGPT(
           command,
@@ -239,7 +242,7 @@ function App() {
         );
 
         console.log("[Voice Command] ChatGPT response:", aiResponse);
-        
+
         if (aiResponse.destination) {
           // ChatGPT identified a destination - find and navigate to it
           const matchedPreset = PRESET_DESTINATIONS.find(
@@ -262,7 +265,10 @@ function App() {
         }
 
         // ChatGPT couldn't find a clear destination - show its message
-        console.log("[Voice Command] AI needs clarification:", aiResponse.message);
+        console.log(
+          "[Voice Command] AI needs clarification:",
+          aiResponse.message,
+        );
         setLocationError(aiResponse.message);
         setVoiceFeedback(null);
         return;
@@ -270,7 +276,9 @@ function App() {
         console.error("[Voice Command] ChatGPT processing failed:", error);
         setVoiceFeedback(null);
         // Fall back to basic matching
-        console.log("[Voice Command] Falling back to basic destination matching");
+        console.log(
+          "[Voice Command] Falling back to basic destination matching",
+        );
       }
     }
 
@@ -403,7 +411,10 @@ function App() {
         console.log("[Conversation Voice] Transcribing with FastAPI...");
         try {
           transcript = await transcribeAudioWithFastAPI(audioBlob);
-          console.log("[Conversation Voice] Transcription received:", transcript);
+          console.log(
+            "[Conversation Voice] Transcription received:",
+            transcript,
+          );
         } catch (fastApiError) {
           console.warn(
             "[Conversation Voice] FastAPI failed, using browser fallback:",
@@ -788,8 +799,14 @@ function App() {
         hasArrivedAtDestination={hasArrivedAtDestination}
         showDestinationDetails={showDestinationDetails}
         onToggleDestinationDetails={onToggleDestinationDetails}
+        isCollapsed={isPreviewCardCollapsed}
+        onToggleCollapse={() =>
+          setIsPreviewCardCollapsed(!isPreviewCardCollapsed)
+        }
         compactLabel={compactLabel}
         fallbackImage={welcomeRouteImage}
+        qrCodeDataUrl={qrCodeDataUrl}
+        onCopyShareLink={onCopyShareLink}
       />
 
       {/* Walk Debugger Un comment this if want to see the fake walking simulation
@@ -828,6 +845,8 @@ function App() {
         isVoiceListening={isVoiceListening}
         voiceRecognitionSupported={voiceRecognitionSupported}
         startPoint={startPoint}
+        hasDestination={!!destination}
+        isPreviewCardCollapsed={isPreviewCardCollapsed}
         onOpenDestinationListModal={onOpenDestinationListModal}
         onToggleVoiceCommand={onToggleVoiceCommand}
         onChangeMode={() => {

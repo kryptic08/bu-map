@@ -1,7 +1,4 @@
-import { useState } from "react";
 import {
-  Wrench,
-  X,
   List,
   Mic,
   MicOff,
@@ -28,52 +25,55 @@ export function FloatingActionButtons({
   isVoiceListening,
   voiceRecognitionSupported,
   startPoint,
+  hasDestination,
+  isPreviewCardCollapsed,
   onOpenDestinationListModal,
   onToggleVoiceCommand,
   onChangeMode,
   onRecenter,
   onClearRoute,
-}: FloatingActionButtonsProps) {
-  const [isOpen, setIsOpen] = useState(false);
-
+}: FloatingActionButtonsProps & {
+  hasDestination?: boolean;
+  isPreviewCardCollapsed?: boolean;
+}) {
   return (
-    <aside className="pointer-events-none absolute right-4 bottom-[calc(max(15vh,120px)+1rem)] z-[900] flex flex-col items-end gap-3 transition-transform duration-300 md:items-start md:bottom-6 md:right-auto md:left-4 max-md:landscape:bottom-auto max-md:landscape:top-4 max-md:landscape:right-4 max-md:landscape:left-auto">
-      {/* Expandable menu */}
-      <div
-        className={`flex flex-col items-end md:items-start gap-3 transition-all duration-300 origin-bottom max-md:landscape:origin-top ${
-          isOpen
-            ? "opacity-100 translate-y-0 pointer-events-auto"
-            : "opacity-0 translate-y-8 pointer-events-none"
-        }`}
-      >
+    <aside
+      className={`pointer-events-none absolute right-4 z-[1050] md:w-auto md:bottom-6 md:top-auto md:right-auto md:left-4 max-md:landscape:w-auto max-md:landscape:bottom-auto max-md:landscape:top-4 max-md:landscape:left-auto max-md:landscape:right-4 transition-all duration-300 ${
+        hasDestination
+          ? isPreviewCardCollapsed
+            ? "bottom-24 md:bottom-6"
+            : "bottom-[24rem] md:bottom-6"
+          : "bottom-24 md:bottom-6"
+      }`}
+    >
+      <div className="flex flex-col items-end gap-3 pointer-events-auto md:flex-row md:items-center max-md:landscape:flex max-md:landscape:flex-row max-md:landscape:items-center">
         {activeEntryMode === "quick" ? (
           <button
             type="button"
             onClick={() => {
               onOpenDestinationListModal();
-              setIsOpen(false);
             }}
-            className="pointer-events-auto flex items-center justify-center h-12 w-12 md:w-auto md:px-4 rounded-full border border-blue-300 bg-blue-600 font-semibold text-white shadow-lg transition hover:bg-blue-500"
+            className="flex items-center justify-center md:justify-start h-12 w-12 md:px-4 md:w-auto rounded-full border border-blue-300 bg-blue-600 font-semibold text-white shadow-lg transition hover:bg-blue-500"
             aria-label="Destination list"
           >
-            <List size={20} className="md:mr-2" />
-            <span className="hidden md:inline text-sm">Destination list</span>
+            <List size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
+            <span className="hidden md:inline text-base">Destinations</span>
           </button>
         ) : (
           <button
             type="button"
             onClick={onToggleVoiceCommand}
             disabled={!voiceRecognitionSupported}
-            className="pointer-events-auto flex items-center justify-center h-12 w-12 md:w-auto md:px-4 rounded-full border border-cyan-300 bg-cyan-600 font-semibold text-white shadow-lg transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex items-center justify-center md:justify-start h-12 w-12 md:px-4 md:w-auto rounded-full border border-cyan-300 bg-cyan-600 font-semibold text-white shadow-lg transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
             aria-label={isVoiceListening ? "Stop voice" : "Start voice"}
           >
             {isVoiceListening ? (
-              <MicOff size={20} className="md:mr-2" />
+              <MicOff size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
             ) : (
-              <Mic size={20} className="md:mr-2" />
+              <Mic size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
             )}
-            <span className="hidden md:inline text-sm">
-              {isVoiceListening ? "Stop voice" : "Start voice"}
+            <span className="hidden md:inline text-base">
+              {isVoiceListening ? "Stop voice" : "Voice"}
             </span>
           </button>
         )}
@@ -82,57 +82,41 @@ export function FloatingActionButtons({
           type="button"
           onClick={() => {
             onChangeMode();
-            setIsOpen(false);
           }}
-          className="pointer-events-auto flex items-center justify-center h-12 w-12 md:w-auto md:px-4 rounded-full border border-slate-300 bg-white font-semibold text-slate-800 shadow-lg transition hover:bg-slate-100"
+          className="flex items-center justify-center md:justify-start h-12 w-12 md:px-4 md:w-auto rounded-full border border-slate-300 bg-white font-semibold text-slate-800 shadow-lg transition hover:bg-slate-100"
           aria-label="Change mode"
         >
-          <MapIcon size={20} className="md:mr-2" />
-          <span className="hidden md:inline text-sm">Change mode</span>
+          <MapIcon size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
+          <span className="hidden md:inline text-base">Change mode</span>
         </button>
 
         <button
           type="button"
           onClick={() => {
             onRecenter(startPoint);
-            setIsOpen(false);
           }}
-          className="pointer-events-auto flex items-center justify-center h-12 w-12 md:w-auto md:px-4 rounded-full border border-slate-300 bg-white font-semibold text-slate-800 shadow-lg transition hover:bg-slate-100"
+          className="flex items-center justify-center md:justify-start h-12 w-12 md:px-4 md:w-auto rounded-full border border-slate-300 bg-white font-semibold text-slate-800 shadow-lg transition hover:bg-slate-100"
           aria-label="Recenter"
         >
-          <Target size={20} className="md:mr-2" />
-          <span className="hidden md:inline text-sm">Recenter</span>
+          <Target size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
+          <span className="hidden md:inline text-base">Recenter</span>
         </button>
 
         <button
           type="button"
           onClick={() => {
             onClearRoute();
-            setIsOpen(false);
           }}
-          className="pointer-events-auto flex items-center justify-center h-12 w-12 md:w-auto md:px-4 rounded-full border border-red-300 bg-white font-semibold text-red-600 shadow-lg transition hover:bg-red-50"
+          className="flex items-center justify-center md:justify-start h-12 w-12 md:px-4 md:w-auto rounded-full border border-red-300 bg-white font-semibold text-red-600 shadow-lg transition hover:bg-red-50"
           aria-label="Clear route"
         >
-          <NavigationOff size={20} className="md:mr-2 text-red-500" />
-          <span className="hidden md:inline text-sm text-red-600">
-            Clear route
-          </span>
+          <NavigationOff
+            size={20}
+            className="md:mr-2 shrink-0 text-red-500 md:size-[22px]"
+          />
+          <span className="hidden md:inline text-red-600">Clear route</span>
         </button>
       </div>
-
-      {/* Main FAB Toggle */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`pointer-events-auto flex items-center justify-center h-14 w-14 rounded-full shadow-2xl transition-all duration-300 md:ml-0 max-md:landscape:ml-auto ${
-          isOpen
-            ? "bg-slate-800 text-white rotate-45"
-            : "bg-blue-600 text-white"
-        }`}
-        aria-label="Toggle menu"
-      >
-        {isOpen ? <X size={28} /> : <Wrench size={24} />}
-      </button>
     </aside>
   );
 }

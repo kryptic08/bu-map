@@ -35,24 +35,22 @@ export function RouteAssistantPanel({
 
   return (
     <section
-      className={`pointer-events-auto absolute right-0 bottom-0 z-[900] flex w-full flex-col overflow-hidden rounded-t-3xl border border-slate-300/30 bg-white/95 p-4 text-slate-900 shadow-[0_38px_120px_-45px_rgba(15,23,42,0.95)] backdrop-blur-md overlay-enter transition-all duration-300 md:top-4 md:right-4 md:bottom-4 md:left-auto md:w-96 md:translate-x-0 md:rounded-2xl max-md:landscape:top-0 max-md:landscape:bottom-0 max-md:landscape:left-0 max-md:landscape:right-auto max-md:landscape:h-[100dvh] max-md:landscape:max-h-[100dvh] max-md:landscape:w-80 max-md:landscape:rounded-none max-md:landscape:rounded-r-2xl max-md:landscape:border-r ${
+      className={`hidden md:flex pointer-events-auto absolute right-0 bottom-0 z-[900] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-300/30 bg-white/95 p-6 text-slate-900 shadow-[0_38px_120px_-45px_rgba(15,23,42,0.95)] backdrop-blur-md overlay-enter transition-all duration-300 md:top-4 md:right-4 md:bottom-4 md:left-auto md:w-[28rem] md:translate-x-0 md:rounded-2xl max-md:landscape:top-0 max-md:landscape:bottom-0 max-md:landscape:left-0 max-md:landscape:right-auto max-md:landscape:h-[100dvh] max-md:landscape:max-h-[100dvh] max-md:landscape:w-[26rem] max-md:landscape:rounded-none max-md:landscape:rounded-r-2xl max-md:landscape:border-r ${
         isMobileCollapsed
-          ? "max-h-[15vh] md:max-h-[calc(100vh-2rem)] max-md:landscape:-translate-x-[calc(100%-3.5rem)]"
+          ? "max-h-[15vh] md:max-h-[calc(100vh-2rem)] max-md:landscape:-translate-x-[calc(100%-4.5rem)]"
           : "max-h-[45vh] md:max-h-[calc(100vh-2rem)] max-md:landscape:translate-x-0"
       }`}
     >
-      <header className="mb-3 border-b border-slate-200 pb-3">
-        <div className="flex items-start justify-between gap-3">
+      <header className="mb-4 border-b border-slate-200 pb-4">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="font-[Sora] text-lg font-semibold">
-              BU Route Assistant
-            </p>
-            <p className="mt-1 text-xs text-slate-600">From: {startLabel}</p>
+            <p className="font-[Sora] text-2xl font-bold">BU Route Assistant</p>
+            <p className="mt-1 text-sm text-slate-600">From: {startLabel}</p>
           </div>
           <button
             type="button"
             onClick={() => setIsMobileCollapsed((previous) => !previous)}
-            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 md:hidden"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 md:hidden"
             aria-expanded={!isMobileCollapsed}
             aria-label={
               isMobileCollapsed ? "Expand route panel" : "Collapse route panel"
@@ -61,19 +59,19 @@ export function RouteAssistantPanel({
             <span className="inline-flex items-center gap-1">
               {isMobileCollapsed ? "Open" : "Hide"}
               {isMobileCollapsed ? (
-                <ChevronUp size={14} />
+                <ChevronUp size={20} />
               ) : (
-                <ChevronDown size={14} />
+                <ChevronDown size={20} />
               )}
             </span>
           </button>
         </div>
         {destination ? (
-          <p className="mt-1 text-xs text-slate-600">
+          <p className="mt-1 text-sm text-slate-600">
             To: {compactLabel(destination.label)}
           </p>
         ) : (
-          <p className="mt-1 text-xs text-slate-600">
+          <p className="mt-1 text-sm text-slate-600">
             Set your destination to get started.
           </p>
         )}
