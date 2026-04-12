@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, QrCode } from "lucide-react";
 import { QrPreviewModal } from "./QrPreviewModal";
 import type { Destination, PresetDestination } from "../types/navigation";
 
@@ -18,6 +18,7 @@ type DestinationPreviewCardProps = {
   fallbackImage: string;
   qrCodeDataUrl?: string | null;
   onCopyShareLink?: () => void;
+  isScannedRoute?: boolean;
 };
 
 export function DestinationPreviewCard({
@@ -33,6 +34,7 @@ export function DestinationPreviewCard({
   onCopyShareLink,
   isCollapsed = false,
   onToggleCollapse,
+  isScannedRoute = false,
 }: DestinationPreviewCardProps & {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -122,6 +124,12 @@ export function DestinationPreviewCard({
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Destination preview
               </p>
+              {isScannedRoute && (
+                <span className="flex items-center gap-1 rounded border border-blue-300 bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800">
+                  <QrCode size={10} />
+                  Shared Route
+                </span>
+              )}
               {hasArrivedAtDestination ? (
                 <span className="rounded border border-emerald-300 bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
                   Arrived

@@ -14,6 +14,7 @@ import { QrPreviewModal } from "./components/QrPreviewModal";
 import { StatusToast } from "./components/StatusToast";
 import { TopDirectionBanner } from "./components/TopDirectionBanner";
 import { WelcomeModal } from "./components/WelcomeModal";
+import { ScannedRouteWelcome } from "./components/ScannedRouteWelcome";
 import { GUARD_HOUSE, PRESET_DESTINATIONS } from "./data/presetDestinations";
 import { planBestRoutes } from "./services/routePlanner";
 import {
@@ -92,6 +93,8 @@ function App() {
   const [showDestinationListModal, setShowDestinationListModal] =
     useState(false);
   const [showQrPreview, setShowQrPreview] = useState(false);
+  const [showScannedRouteWelcome, setShowScannedRouteWelcome] = useState(false);
+  const [isScannedRoute, setIsScannedRoute] = useState(false);
   const voiceCaptureAbortRef = useRef<AbortController | null>(null);
 
   // AI Conversation state
@@ -591,8 +594,10 @@ function App() {
       setRoute(null);
       setFocusRequest({ point: startFromPacket, zoom: 19 });
       setRouteError(null);
-      setEntryMode("quick");
+      setIsScannedRoute(true);
+      setShowScannedRouteWelcome(true);
       setShowWelcomeModal(false);
+      setEntryMode(null);
     } catch {
       setRouteError("Shared route packet is invalid or unsupported.");
     }
@@ -802,6 +807,8 @@ function App() {
     setIsSimulationPaused(false);
     setShowNextStopPrompt(false);
     setHasArrivedAtDestination(false);
+    setIsScannedRoute(false);
+    setShowScannedRouteWelcome(false);
   };
 
   const onChooseNextDestination = () => {
@@ -816,6 +823,21 @@ function App() {
     if (activeEntryMode === "quick") {
       setShowDestinationListModal(true);
     }
+  };
+
+  const onStartScannedRoute = () => {
+    setShowScannedRouteWelcome(false);
+    setEntryMode("quick");
+    setShowDestinationDetails(true);
+    setIsPreviewCardCollapsed(false);
+  };
+
+  const onCancelScannedRoute = () => {
+    setShowScannedRouteWelcome(false);
+    setIsScannedRoute(false);
+    setDestination(null);
+    setRoute(null);
+    setShowWelcomeModal(true);
   };
 
   const onCopyShareLink = async () => {
@@ -857,6 +879,14 @@ function App() {
         show={showWelcomeModal}
         onChooseEntryMode={onChooseEntryMode}
         welcomeImage={welcomeRouteImage}
+      />
+
+      <ScannedRouteWelcome
+        show={showScannedRouteWelcome}
+        startLabel={startLabel}
+        destinationLabel={destination?.label || "Unknown"}
+        onStart={onStartScannedRoute}
+        onCancel={onCancelScannedRoute}
       />
 
       <AiConversationModal
@@ -907,6 +937,7 @@ function App() {
         fallbackImage={welcomeRouteImage}
         qrCodeDataUrl={qrCodeDataUrl}
         onCopyShareLink={onCopyShareLink}
+        isScannedRoute={isScannedRoute}
       />
 
       {/* Walk Debugger Un comment this if want to see the fake walking simulation
