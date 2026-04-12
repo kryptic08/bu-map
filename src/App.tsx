@@ -500,13 +500,24 @@ function App() {
         error instanceof Error ? error.message : String(error);
       console.error("[Conversation Voice] Error:", error);
 
-      const errorMsg: ConversationMessage = {
-        id: `error-${Date.now()}`,
-        role: "assistant",
-        content: `Voice input error: ${errorMessage}`,
-        timestamp: Date.now(),
-      };
-      setConversationMessages((prev) => [...prev, errorMsg]);
+      // Don't show error messages for common microphone issues
+      const isMicPermissionError = errorMessage.includes("Requested device not found") ||
+                                   errorMessage.includes("Permission denied") ||
+                                   errorMessage.includes("NotAllowedError") ||
+                                   errorMessage.includes("NotFoundError") ||
+                                   errorMessage.includes("AbortError") ||
+                                   errorMessage.toLowerCase().includes("microphone");
+
+      // Only show error message for unexpected errors
+      if (!isMicPermissionError) {
+        const errorMsg: ConversationMessage = {
+          id: `error-${Date.now()}`,
+          role: "assistant",
+          content: `Voice input error: ${errorMessage}`,
+          timestamp: Date.now(),
+        };
+        setConversationMessages((prev) => [...prev, errorMsg]);
+      }
     } finally {
       voiceCaptureAbortRef.current = null;
       setIsVoiceListening(false);
