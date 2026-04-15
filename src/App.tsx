@@ -34,11 +34,9 @@ import {
 } from "./utils/routePacket";
 import {
   captureAudioFromMicrophone,
-  transcribeAudioWithFastAPI,
   isFastAPIVoiceSupportedInBrowser,
   isBrowserSpeechRecognitionSupported,
   isHFTranscriptionConfigured,
-  transcribeWithBrowserSpeechRecognition,
 } from "./utils/voiceRecognition";
 import {
   isOpenAIConfigured,
@@ -46,9 +44,14 @@ import {
   chatWithAI,
 } from "./services/chatgpt";
 import {
-  transcribeAudioWithOpenAI,
   isOpenAITranscriptionConfigured,
 } from "./services/openaiTranscription";
+import {
+  transcribeRealtimeWithOpenAI,
+  transcribeRealtimeWithFastAPI,
+  transcribeRealtimeWithBrowserSpeech,
+} from "./services/realtimeTranscription";
+import { isEnglishText } from "./utils/languageDetection";
 import type {
   Destination,
   EntryMode,
@@ -411,7 +414,7 @@ function App() {
     }
 
     setIsVoiceListening(true);
-    console.log("[Conversation Voice] Starting voice recognition...");
+    console.log("[Conversation Voice] Starting real-time voice recognition with English-only filtering...");
 
     const controller = new AbortController();
     voiceCaptureAbortRef.current = controller;
@@ -419,34 +422,69 @@ function App() {
     try {
       let transcript = "";
 
-      // Use OpenAI Whisper if configured
+      // Use OpenAI Whisper with real-time transcription if configured
       if (isOpenAITranscriptionConfigured()) {
         console.log("[Conversation Voice] Capturing audio from microphone...");
         const audioBlob = await captureAudioFromMicrophone({
-          maxDurationMs: 8000,
-          timesliceMs: 250,
+          maxDurationMs: 7000,
+          timesliceMs: 150,
           signal: controller.signal,
         });
 
-        console.log("[Conversation Voice] Transcribing with OpenAI Whisper...");
+        console.log("[Conversation Voice] Transcribing with OpenAI GPT-4o (real-time, English-only)...");
         try {
-          transcript = await transcribeAudioWithOpenAI(audioBlob, {
-            model: "gpt-4o-mini-transcribe",
+          // Use real-time transcription with English filtering
+          for await (const update of transcribeRealtimeWithOpenAI(audioBlob, {
             language: "en",
-          });
-          console.log(
-            "[Conversation Voice] OpenAI transcription received:",
-            transcript,
-          );
-        } catch (openaiError) {
-          console.warn(
-            "[Conversation Voice] OpenAI failed, using browser fallback:",
-            openaiError,
-          );
-          if (isBrowserSpeechRecognitionSupported()) {
-            transcript = await transcribeWithBrowserSpeechRecognition({
-              signal: controller.signal,
+            minConfidence: 0.5,
+            signal: controller.signal,
+          })) {
+            console.log("[Conversation Voice] Real-time update:", {
+              interim: update.interim.substring(0, 50),
+              final: update.final.substring(0, 50),
+              isEnglish: update.isEnglish,
+              confidence: update.confidence.toFixed(2),
             });
+            
+            // Update UI with interim results in real-time
+            if (update.interim) {
+              setVoiceFeedback(`Listening: ${update.interim}`);
+            }
+            
+            // Collect final transcription
+            if (update.final) {
+              transcript = update.final;
+              console.log("[Conversation Voice] Final transcript:", transcript);
+            }
+          }
+        } catch (openaiError) {
+          const errorMsg = openaiError instanceof Error ? openaiError.message : String(openaiError);
+          console.warn(
+            "[Conversation Voice] OpenAI real-time transcription failed:",
+            errorMsg,
+          );
+          
+          // Check if it's a language filter rejection
+          if (errorMsg.includes("English") || errorMsg.includes("confidence")) {
+            setLocationError("Only English language input is accepted. Please try again in English.");
+            setIsVoiceListening(false);
+            setVoiceFeedback(null);
+            return;
+          }
+          
+          // Fall back to browser speech recognition
+          if (isBrowserSpeechRecognitionSupported()) {
+            console.log("[Conversation Voice] Falling back to browser speech recognition...");
+            for await (const update of transcribeRealtimeWithBrowserSpeech({
+              signal: controller.signal,
+            })) {
+              if (update.interim) {
+                setVoiceFeedback(`Listening: ${update.interim}`);
+              }
+              if (update.final) {
+                transcript = update.final;
+              }
+            }
           } else {
             throw openaiError;
           }
@@ -458,44 +496,92 @@ function App() {
         // Fallback to FastAPI if OpenAI not configured
         console.log("[Conversation Voice] Capturing audio from microphone...");
         const audioBlob = await captureAudioFromMicrophone({
-          maxDurationMs: 8000,
-          timesliceMs: 250,
+          maxDurationMs: 7000,
+          timesliceMs: 150,
           signal: controller.signal,
         });
 
-        console.log("[Conversation Voice] Transcribing with FastAPI...");
+        console.log("[Conversation Voice] Transcribing with FastAPI (real-time, English-only)...");
         try {
-          transcript = await transcribeAudioWithFastAPI(audioBlob);
-          console.log(
-            "[Conversation Voice] Transcription received:",
-            transcript,
-          );
-        } catch (fastApiError) {
-          console.warn(
-            "[Conversation Voice] FastAPI failed, using browser fallback:",
-            fastApiError,
-          );
-          if (isBrowserSpeechRecognitionSupported()) {
-            transcript = await transcribeWithBrowserSpeechRecognition({
-              signal: controller.signal,
+          const fastApiUrl = (import.meta.env.VITE_FASTAPI_TRANSCRIBE_URL ?? 
+            "https://veccode-wish.hf.space/transcribe").trim();
+          
+          for await (const update of transcribeRealtimeWithFastAPI(audioBlob, fastApiUrl, {
+            minConfidence: 0.5,
+            signal: controller.signal,
+          })) {
+            console.log("[Conversation Voice] FastAPI real-time update:", {
+              final: update.final.substring(0, 50),
+              isEnglish: update.isEnglish,
+              confidence: update.confidence.toFixed(2),
             });
+            
+            if (update.final) {
+              transcript = update.final;
+            }
+          }
+        } catch (fastApiError) {
+          const errorMsg = fastApiError instanceof Error ? fastApiError.message : String(fastApiError);
+          console.warn(
+            "[Conversation Voice] FastAPI real-time transcription failed:",
+            errorMsg,
+          );
+          
+          // Check if it's a language filter rejection
+          if (errorMsg.includes("English") || errorMsg.includes("confidence")) {
+            setLocationError("Only English language input is accepted. Please try again in English.");
+            setIsVoiceListening(false);
+            setVoiceFeedback(null);
+            return;
+          }
+          
+          // Fall back to browser speech recognition
+          if (isBrowserSpeechRecognitionSupported()) {
+            console.log("[Conversation Voice] Falling back to browser speech recognition...");
+            for await (const update of transcribeRealtimeWithBrowserSpeech({
+              signal: controller.signal,
+            })) {
+              if (update.interim) {
+                setVoiceFeedback(`Listening: ${update.interim}`);
+              }
+              if (update.final) {
+                transcript = update.final;
+              }
+            }
           } else {
             throw fastApiError;
           }
         }
       } else {
-        // Final fallback to browser speech recognition
-        console.log("[Conversation Voice] Using browser speech recognition");
-        transcript = await transcribeWithBrowserSpeechRecognition({
+        // Final fallback to browser speech recognition with English filtering
+        console.log("[Conversation Voice] Using browser speech recognition (real-time, English-only)...");
+        for await (const update of transcribeRealtimeWithBrowserSpeech({
           signal: controller.signal,
-        });
+        })) {
+          // Update UI with interim results
+          if (update.interim) {
+            setVoiceFeedback(`Listening: ${update.interim}`);
+          }
+          
+          // Collect final transcription
+          if (update.final) {
+            transcript = update.final;
+            console.log("[Conversation Voice] Browser speech final result:", transcript);
+          }
+        }
       }
 
-      // Validate transcript before sending
+      // Validate transcript and check language
       const trimmedTranscript = transcript.trim();
       if (trimmedTranscript && trimmedTranscript.length > 0) {
-        console.log("[Conversation Voice] Valid transcript:", trimmedTranscript);
-        await onSendConversationMessage(trimmedTranscript);
+        // Double-check that final transcript is English
+        if (isEnglishText(trimmedTranscript)) {
+          console.log("[Conversation Voice] Valid English transcript:", trimmedTranscript);
+          await onSendConversationMessage(trimmedTranscript);
+        } else {
+          console.warn("[Conversation Voice] Non-English transcript detected:", trimmedTranscript);
+          setLocationError("Only English language input is accepted. Please try again in English.");
+        }
       } else {
         console.log("[Conversation Voice] Empty or invalid transcript, skipping");
       }

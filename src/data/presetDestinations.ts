@@ -71,7 +71,7 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     keywords: ["gym", "sports", "fitness"],
   },
   {
-    label: "Center for Computer and Engineering Studies / Salceda Building 2",
+    label: "Salceda Building 2 (Computer & Engineering)",
     lat: 13.2958673,
     lon: 123.4848151,
     image: fpComEng2nd,

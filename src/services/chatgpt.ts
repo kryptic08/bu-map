@@ -1,6 +1,7 @@
 import type { PresetDestination } from "../types/navigation";
 import type { ConversationMessage } from "../types/conversation";
 import { getCampusDirectoryText } from "../data/campusDirectory";
+import { getCampusServicesText } from "../data/campusServices";
 
 const OPENAI_API_KEY = (import.meta.env.VITE_OPENAI_API_KEY ?? "").trim();
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
@@ -139,13 +140,17 @@ export async function chatWithAI(
     })
     .join("\n");
 
-  // Get comprehensive campus directory
+  // Get comprehensive campus directory and services
   const campusDirectory = getCampusDirectoryText();
+  const campusServices = getCampusServicesText();
 
-  const systemPrompt = `You are a helpful AI assistant for Bicol University Polangui Campus navigation. You help students and visitors navigate the campus and answer questions about campus locations, buildings, rooms, and facilities.
+  const systemPrompt = `You are a helpful AI assistant for Bicol University Polangui Campus navigation. You help students and visitors navigate the campus and answer questions about campus locations, buildings, rooms, facilities, and services.
 
 COMPLETE CAMPUS DIRECTORY:
 ${campusDirectory}
+
+CAMPUS SERVICES & TRANSACTIONS GUIDE:
+${campusServices}
 
 NAVIGABLE DESTINATIONS:
 ${destinationList}
@@ -160,15 +165,18 @@ You can:
 3. Provide directions to buildings and rooms
 4. Give information about what's available on campus
 5. Help users find specific departments, offices, or facilities
-6. Have casual conversation about campus life
+6. Answer questions about campus services, transactions, and fees
+7. Have casual conversation about campus life
 
 When a user wants to navigate somewhere, respond with JSON that includes an action.
 CRITICAL NAVIGATION RULES:
 - When user asks for "library", "librarian", or library-related rooms → navigate to "Salceda Building" (library is on 2nd floor)
-- When user asks for ECB rooms (ECB 12-19, ECB 201-204, CL1-CL6, computer labs) → navigate to "Center for Computer and Engineering Studies / Salceda Building 2"
+- When user asks for ECB rooms (ECB 12-19, ECB 201-204, CL1-CL6, computer labs) → navigate to "Salceda Building 2 (Computer & Engineering)"
 - When user asks for "gym", "sports", "fitness" → navigate to "BUP GYM"
 - When user asks for "nursing" related rooms → navigate to "Nursing Department"
-- When user asks for "registrar", "enrollment" → navigate to "Registrar's Office"
+- When user asks for "registrar", "enrollment", "transcript", "academic records" → navigate to "Registrar"
+- When user asks for "cashier", "payment", "fees" → navigate to "Administrative Building"
+- When user asks for "health", "medical", "dental", "clinic" → navigate to "Medical and Dental Clinic Bicol Univerity Health Services"
 - Always match the EXACT destination label from the NAVIGABLE DESTINATIONS list
 
 Response format for navigation - INCLUDE DETAILED DIRECTIONS:
@@ -184,6 +192,8 @@ IMPORTANT:
 - If a user asks about a specific room or office, tell them exactly which building and floor it's on
 - For navigation responses, mention the starting point and destination for clarity
 - Include room floor information in your navigation message
+- When users ask about services or fees, refer to the Campus Services section above
+- Provide specific fee amounts when asked about costs (e.g., "Transcript of Records: ₱30.00 per page")
 
 Be friendly, helpful, and conversational. Keep responses concise but informative.`;
 
