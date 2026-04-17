@@ -383,7 +383,7 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
       "Frequently passed when moving between major facilities",
       "Useful waypoint for navigation within the campus core",
     ],
-    keywords: ["salceda", "salceda building", "building", "sb", "library", "lib", "librarian", "circulation", "reference"],
+    keywords: ["salceda", "salceda building", "building", "sb", "library", "lib", "librarian", "circulation", "reference", "csac", "id", "university id", "identification card", "id reprint", "lost id", "defaced id", "mutilated id", "faded id", "insurance claims", "authority to travel", "student activities"],
   },
   {
     label: "Electronical Technology Department",

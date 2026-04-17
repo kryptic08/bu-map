@@ -1,12 +1,12 @@
 /**
  * Real-time Transcription Service
- * Handles streaming transcription with real-time English language filtering
+ * Handles streaming transcription with real-time language filtering (English and Tagalog)
  */
 
-import { isEnglishText, getEnglishConfidentScore } from "../utils/languageDetection";
+import { isValidLanguage, getLanguageConfidenceScore } from "../utils/languageDetection";
 
 export type RealtimeTranscriptionOptions = {
-  language?: "en";
+  language?: "en" | "tl";
   minConfidence?: number; // Minimum confidence score (0-1) required to accept transcription
   maxDurationMs?: number;
   signal?: AbortSignal;
@@ -15,14 +15,14 @@ export type RealtimeTranscriptionOptions = {
 export type RealtimeTranscriptionUpdate = {
   interim: string; // Real-time interim result
   final: string; // Final confirmed transcription
-  isEnglish: boolean; // Whether text is detected as English
+  isValid: boolean; // Whether text is detected as valid language
   confidence: number; // Language confidence score (0-1)
   isFinal: boolean; // Whether this is a final result
 };
 
 /**
- * Real-time transcription using browser's Web Speech API with English filtering
- * Yields partial results as they arrive, filtering for English content
+ * Real-time transcription using browser's Web Speech API with language filtering
+ * Yields partial results as they arrive, filtering for valid language content (English or Tagalog)
  */
 export async function* transcribeRealtimeWithBrowserSpeech(
   options: RealtimeTranscriptionOptions = {},
@@ -38,7 +38,9 @@ export async function* transcribeRealtimeWithBrowserSpeech(
   const recognition = new SpeechRecognitionAPI();
   recognition.continuous = true;
   recognition.interimResults = true;
-  recognition.lang = `${language}-US`;
+  // Use language code mapping for browser API
+  const browserLang = language === "tl" ? "fil-PH" : "en-US";
+  recognition.lang = browserLang;
 
   let finalTranscript = "";
   let aborted = false;
@@ -77,12 +79,12 @@ export async function* transcribeRealtimeWithBrowserSpeech(
 
     recognition.onerror = (event: any) => {
       console.error("[Realtime Speech] Error:", event.error);
-      enqueueResult({ interim: "", final: "", isEnglish: false, confidence: 0, isFinal: true });
+      enqueueResult({ interim: "", final: "", isValid: false, confidence: 0, isFinal: true });
     };
 
     recognition.onend = () => {
       console.log("[Realtime Speech] Recognition ended");
-      enqueueResult({ interim: "", final: "", isEnglish: false, confidence: 0, isFinal: true });
+      enqueueResult({ interim: "", final: "", isValid: false, confidence: 0, isFinal: true });
     };
 
     recognition.onresult = (event: any) => {
@@ -99,46 +101,46 @@ export async function* transcribeRealtimeWithBrowserSpeech(
         }
       }
 
-      // Check if interim result is English and meets confidence threshold
+      // Check if interim result is valid language and meets confidence threshold
       if (interimTranscript) {
-        const isEnglish = isEnglishText(interimTranscript);
-        const confidence = getEnglishConfidentScore(interimTranscript);
+        const isValid = isValidLanguage(interimTranscript);
+        const confidence = getLanguageConfidenceScore(interimTranscript);
 
         console.log("[Realtime Speech] Interim result:", {
           text: interimTranscript.substring(0, 50),
-          isEnglish,
+          isValid,
           confidence: confidence.toFixed(2),
         });
 
-        // Only queue if English content and meets confidence threshold
-        if (isEnglish && confidence >= minConfidence) {
+        // Only queue if valid language content and meets confidence threshold
+        if (isValid && confidence >= minConfidence) {
           enqueueResult({
             interim: interimTranscript,
             final: finalTranscript.trim(),
-            isEnglish: true,
+            isValid: true,
             confidence,
             isFinal: false,
           });
         }
       }
 
-      // Check if final result is English and meets confidence threshold
+      // Check if final result is valid language and meets confidence threshold
       if (finalTranscript) {
-        const isEnglish = isEnglishText(finalTranscript);
-        const confidence = getEnglishConfidentScore(finalTranscript);
+        const isValid = isValidLanguage(finalTranscript);
+        const confidence = getLanguageConfidenceScore(finalTranscript);
 
         console.log("[Realtime Speech] Final result:", {
           text: finalTranscript.substring(0, 50),
-          isEnglish,
+          isValid,
           confidence: confidence.toFixed(2),
         });
 
-        // Only queue final result if English and meets threshold
-        if (isEnglish && confidence >= minConfidence) {
+        // Only queue final result if valid language and meets threshold
+        if (isValid && confidence >= minConfidence) {
           enqueueResult({
             interim: "",
             final: finalTranscript.trim(),
-            isEnglish: true,
+            isValid: true,
             confidence,
             isFinal: true,
           });
@@ -168,7 +170,7 @@ export async function* transcribeRealtimeWithBrowserSpeech(
 
 /**
  * Real-time transcription using OpenAI Whisper with streaming
- * Captures audio in chunks and transcribes in real-time with English filtering
+ * Captures audio in chunks and transcribes in real-time with language filtering
  */
 export async function* transcribeRealtimeWithOpenAI(
   audioBlob: Blob,
@@ -185,9 +187,10 @@ export async function* transcribeRealtimeWithOpenAI(
 
   const formData = new FormData();
   formData.append("file", audioBlob, "audio.webm");
-  formData.append("model", "gpt-4o-mini-transcribe");
+  formData.append("model", "whisper-1");  // Optimized for speed
   formData.append("response_format", "text");
-  formData.append("language", language);
+  // Map language code to OpenAI language parameter
+  formData.append("language", language === "tl" ? "tl" : "en");
 
   console.log("[Realtime OpenAI] Sending audio for transcription...");
 
@@ -209,28 +212,28 @@ export async function* transcribeRealtimeWithOpenAI(
 
     console.log("[Realtime OpenAI] Transcription complete:", trimmed.substring(0, 50));
 
-    // Validate English content
-    const isEnglish = isEnglishText(trimmed);
-    const confidence = getEnglishConfidentScore(trimmed);
+    // Validate language content
+    const isValid = isValidLanguage(trimmed);
+    const confidence = getLanguageConfidenceScore(trimmed);
 
     console.log("[Realtime OpenAI] Language check:", {
-      isEnglish,
+      isValid,
       confidence: confidence.toFixed(2),
       minRequired: minConfidence.toFixed(2),
     });
 
     // Only yield if meets requirements
-    if (isEnglish && confidence >= minConfidence) {
+    if (isValid && confidence >= minConfidence) {
       yield {
         interim: "",
         final: trimmed,
-        isEnglish: true,
+        isValid: true,
         confidence,
         isFinal: true,
       };
-    } else if (!isEnglish) {
-      console.warn("[Realtime OpenAI] Non-English content detected - rejecting");
-      throw new Error("Only English language input is accepted");
+    } else if (!isValid) {
+      console.warn("[Realtime OpenAI] Non-valid language detected - rejecting");
+      throw new Error("Only English or Tagalog language input is accepted");
     } else {
       console.warn("[Realtime OpenAI] Confidence too low - rejecting");
       throw new Error(`Language confidence (${confidence.toFixed(2)}) below minimum (${minConfidence})`);
@@ -242,7 +245,7 @@ export async function* transcribeRealtimeWithOpenAI(
 }
 
 /**
- * Real-time transcription using FastAPI endpoint with English filtering
+ * Real-time transcription using FastAPI endpoint with language filtering
  */
 export async function* transcribeRealtimeWithFastAPI(
   audioBlob: Blob,
@@ -272,28 +275,28 @@ export async function* transcribeRealtimeWithFastAPI(
 
     console.log("[Realtime FastAPI] Transcription complete:", trimmed.substring(0, 50));
 
-    // Validate English content
-    const isEnglish = isEnglishText(trimmed);
-    const confidence = getEnglishConfidentScore(trimmed);
+    // Validate language content
+    const isValid = isValidLanguage(trimmed);
+    const confidence = getLanguageConfidenceScore(trimmed);
 
     console.log("[Realtime FastAPI] Language check:", {
-      isEnglish,
+      isValid,
       confidence: confidence.toFixed(2),
       minRequired: minConfidence.toFixed(2),
     });
 
     // Only yield if meets requirements
-    if (isEnglish && confidence >= minConfidence) {
+    if (isValid && confidence >= minConfidence) {
       yield {
         interim: "",
         final: trimmed,
-        isEnglish: true,
+        isValid: true,
         confidence,
         isFinal: true,
       };
-    } else if (!isEnglish) {
-      console.warn("[Realtime FastAPI] Non-English content detected - rejecting");
-      throw new Error("Only English language input is accepted");
+    } else if (!isValid) {
+      console.warn("[Realtime FastAPI] Non-valid language detected - rejecting");
+      throw new Error("Only English or Tagalog language input is accepted");
     } else {
       console.warn("[Realtime FastAPI] Confidence too low - rejecting");
       throw new Error(`Language confidence (${confidence.toFixed(2)}) below minimum (${minConfidence})`);

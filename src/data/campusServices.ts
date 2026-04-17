@@ -484,6 +484,122 @@ export const CAMPUS_SERVICES_DATABASE: ServiceInfo[] = [
   },
 ];
 
+const AI_MASAIN_SUPPLEMENTAL_DATA = `AI MASAIN DATA (Supplemental)
+
+BUILDINGS
+- Salceda Building (First Floor, Second Floor)
+- Center for Computer and Engineering Studies (Salceda Building 2, First and Second Floor)
+- Nursing Department
+- Electrical Technology Department (First and Second Floor)
+- Administration Building (First and Second Floor)
+- Gymnasium / BUP Gym
+- Center for Student Services
+- Automotive Building
+
+TRANSACTIONS AND OFFICES
+
+Registrar's Office (Academic Transactions)
+1. Opening of Cost Recovery Program (CRP)
+2. Dropping of Subjects
+3. Adding or Changing of Subjects
+4. Application for Leave of Absence (LOA)
+5. First Issuance of Official Transcript of Records (OTR)
+6. Authentication of Academic Credentials
+7. Request for Honorable Dismissal
+8. Request for Certifications (Grades, Registration/Enrollment, GWA, Good Moral, Course Descriptions, Units Earned, Bona Fide Student, CAR)
+
+Library Services (Academic Support)
+1. Borrowing of Books (Without Accountability)
+2. Borrowing of Books (With Accountability)
+3. Provision of Services to External Researchers
+4. Issuance of Library Permit
+5. Request for Referral Letter
+6. Issuance of Student Borrower's Card
+7. Online Document Delivery
+
+Health Services
+1. Dental Consultation and Treatment
+2. Dental Examination
+3. Medical Consultation and Treatment
+4. Medical Examination
+
+Supply Office (SPMO)
+1. Procurement thru DBM-PS
+2. Disposal of Unserviceable Properties and Waste Materials
+3. Contract Implementation and Processing of Payment
+
+College Research and Development Office
+1. Receiving and Endorsing Research Proposals
+2. Receiving and Recording Monitoring Reports
+3. Conduct Research Capabilities for Faculty and Students
+4. Recommends Students and Faculty to Research Forums (International/National/Regional/Local)
+
+Procurement Management Office
+1. Preparation and Consolidation of PPMP to APP
+2. Sale of Bidding Documents (Public Bidding - Goods and Infra)
+3. Processing of Procurement Project - Public Bidding (Goods and Consulting Services)
+4. Processing of Procurement Project - Public Bidding (Infrastructure Services)
+5. Processing of Procurement Project - Alternative Method (Goods and Consulting Services)
+6. Processing of Procurement Project - Alternative Method (Infrastructure Services)
+7. Procurement Contract Management
+
+Physical Development Management Office
+1. Initiate and Prepare plans for improvement of physical facilities
+2. Receive materials and labor needed for facility improvement
+3. Supervise infrastructure, construction, repair, and maintenance projects
+
+Finance Office / Budget Office
+1. Issuance of Certificate of Availability of Funds (CAF)
+2. Issuance of ORS (F01) and BURS (F05)
+
+College Extension Management Office
+1. Receiving and Endorsing Extension Proposals
+2. Receiving and Recording Monitoring Reports
+3. Conduct Extension Capabilities for Faculty and Students
+4. Recommends Students and Faculty to Research and Extension Forums
+
+Center for Student Services / CSC / CSAC
+- Signing of documents from CBOs and institutions
+- Release of certificates from recognition and CSC events
+- Collection of USC/CSC fee
+- Issuance of certificate of insurance
+- Release of evaluation forms per activity
+- Handles income-generating projects
+- Endorsement of insurance claims
+- Distribution and reprinting endorsement of university ID
+- Endorsement for authority to travel
+- Recognition and re-accreditation of college organizations
+- Endorsement of in-campus student activities
+
+Administration Building - Administrative Office / Accounting Office
+- Processing of various financial claims
+- Utility expense and bill payments
+- Cash advance and liquidation (local and foreign travel)
+- Reimbursement for travel
+- Wages for job order personnel
+- Request for service record
+- Processing of leave applications
+- Processing and computation of service credits
+- Pre-audit claims
+- Signing of clearances
+- Preparation of financial statements
+
+Cashier Fee References (Supplemental)
+- Certification (COG, Good Moral, Bonafide Student, Enrollment, OR): PHP 20.00
+- Authentication (COR, COG, OR, ID): PHP 10.00
+- COR Reprinting: PHP 20.00
+- Completion Form: PHP 20.00
+- Identification Card: PHP 75.00
+- Honorable Dismissal: PHP 75.00
+- Transcript of Record (per page): PHP 30.00
+- Add/Change/Drop Subject (per subject): PHP 10.00
+- Thesis Fee: PHP 2200.00
+- On the Job Training Fee: PHP 200.00
+- Practice Teaching Fee: PHP 1000.00
+- RLE Fee: depends on assessed fee
+- Affiliation Fee: depends on assessed fee
+`;
+
 /**
  * Get all services for a specific category
  */
@@ -562,6 +678,10 @@ export function getCampusServicesText(): string {
 
     output += "\n";
   }
+
+  output += "AI MASAIN SUPPLEMENTAL DATA\n";
+  output += "===========================\n\n";
+  output += `${AI_MASAIN_SUPPLEMENTAL_DATA}\n`;
 
   return output;
 }

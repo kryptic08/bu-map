@@ -1,6 +1,9 @@
 import { Bot, Mic, X, QrCode } from "lucide-react";
 import { useEffect, useRef } from "react";
-import type { ConversationMessage } from "../types/conversation";
+import type {
+  ConversationMessage,
+  ConversationMessageAction,
+} from "../types/conversation";
 
 type AiConversationModalProps = {
   show: boolean;
@@ -11,6 +14,7 @@ type AiConversationModalProps = {
   onClose: () => void;
   onStartVoice: () => void;
   onOpenQrCode?: () => void;
+  onViewFloorPlan?: (action: ConversationMessageAction) => void;
 };
 
 export function AiConversationModal({
@@ -22,6 +26,7 @@ export function AiConversationModal({
   onClose,
   onStartVoice,
   onOpenQrCode,
+  onViewFloorPlan,
 }: AiConversationModalProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasStartedRef = useRef(false);
@@ -61,10 +66,10 @@ export function AiConversationModal({
   }
 
   return (
-    <section className="pointer-events-auto absolute right-0 top-0 bottom-0 z-[900] w-full max-w-md flex flex-col overflow-hidden border-l border-slate-300/30 bg-white/95 shadow-[0_38px_120px_-45px_rgba(15,23,42,0.95)] backdrop-blur-md">
+    <section className="pointer-events-auto absolute right-0 top-0 bottom-0 z-900 w-full max-w-md flex flex-col overflow-hidden border-l border-slate-300/30 bg-white/95 shadow-[0_38px_120px_-45px_rgba(15,23,42,0.95)] backdrop-blur-md">
       <div className="relative flex h-full w-full flex-col overflow-hidden">
         {/* Header */}
-        <div className="relative border-b border-slate-200 bg-gradient-to-r from-cyan-500 to-sky-600 px-5 py-4">
+        <div className="relative border-b border-slate-200 bg-linear-to-r from-cyan-500 to-sky-600 px-5 py-4">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.2),transparent_50%)]" />
           <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -108,7 +113,7 @@ export function AiConversationModal({
         <div className="flex-1 overflow-y-auto bg-slate-50 p-4">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-cyan-100 to-sky-100">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-cyan-100 to-sky-100">
                 <Mic className="h-8 w-8 text-cyan-600" />
               </div>
               <p className="mb-2 text-lg font-semibold text-slate-900">
@@ -146,13 +151,24 @@ export function AiConversationModal({
                   <div
                     className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                       message.role === "user"
-                        ? "bg-gradient-to-br from-cyan-500 to-sky-600 text-white"
+                        ? "bg-linear-to-br from-cyan-500 to-sky-600 text-white"
                         : "border border-slate-200 bg-white text-slate-900"
                     }`}
                   >
                     <p className="whitespace-pre-wrap text-sm leading-relaxed">
                       {message.content}
                     </p>
+                    {message.role === "assistant" &&
+                    message.action?.type === "view-floor-plan" &&
+                    onViewFloorPlan ? (
+                      <button
+                        type="button"
+                        onClick={() => onViewFloorPlan(message.action!)}
+                        className="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                      >
+                        {message.action.label}
+                      </button>
+                    ) : null}
                     <p
                       className={`mt-1 text-[10px] ${message.role === "user" ? "text-cyan-100" : "text-slate-400"}`}
                     >
@@ -187,7 +203,7 @@ export function AiConversationModal({
 
         {/* Voice Status Indicator */}
         <div className="border-t border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-center gap-3 rounded-xl bg-gradient-to-br from-cyan-50 to-sky-50 p-4">
+          <div className="flex items-center justify-center gap-3 rounded-xl bg-linear-to-br from-cyan-50 to-sky-50 p-4">
             <div className="relative flex h-10 w-10 items-center justify-center">
               {isListening ? (
                 <>

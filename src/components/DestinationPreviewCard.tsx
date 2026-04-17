@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, QrCode } from "lucide-react";
 import { QrPreviewModal } from "./QrPreviewModal";
 import type { Destination, PresetDestination } from "../types/navigation";
@@ -19,6 +19,10 @@ type DestinationPreviewCardProps = {
   qrCodeDataUrl?: string | null;
   onCopyShareLink?: () => void;
   isScannedRoute?: boolean;
+  openFloorplanRequest?: {
+    token: number;
+    roomLabel?: string;
+  } | null;
 };
 
 export function DestinationPreviewCard({
@@ -32,6 +36,7 @@ export function DestinationPreviewCard({
   fallbackImage,
   qrCodeDataUrl,
   onCopyShareLink,
+  openFloorplanRequest,
   isCollapsed = false,
   onToggleCollapse,
   isScannedRoute = false,
@@ -43,9 +48,110 @@ export function DestinationPreviewCard({
   const [showThumbnailFullscreen, setShowThumbnailFullscreen] = useState(false);
   const [selectedFloorIndex, setSelectedFloorIndex] = useState(0);
   const [showQrModal, setShowQrModal] = useState(false);
+  const lastHandledFloorplanTokenRef = useRef<number | null>(null);
   const [selectedDirectoryItemLabel, setSelectedDirectoryItemLabel] = useState<
     string | null
   >(null);
+
+  const normalizeText = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const findBestDirectoryMatch = (
+    hint: string,
+  ): { floorIndex: number; itemLabel: string; score: number } | null => {
+    const normalizedHint = normalizeText(hint);
+    if (!normalizedHint) {
+      return null;
+    }
+
+    const hintTokens = normalizedHint
+      .split(" ")
+      .filter((token) => token.length > 1);
+
+    const floorDirectory = selectedPresetDestination?.floorDirectory ?? [];
+    let bestMatch: {
+      floorIndex: number;
+      itemLabel: string;
+      score: number;
+    } | null = null;
+
+    for (const floorEntry of floorDirectory) {
+      const floorIndex = (selectedPresetDestination?.floorPlans ?? []).findIndex(
+        (floorPlan) => floorPlan.label === floorEntry.floorLabel,
+      );
+
+      if (floorIndex < 0) {
+        continue;
+      }
+
+      for (const item of floorEntry.items) {
+        const normalizedItem = normalizeText(item.label);
+        if (!normalizedItem) {
+          continue;
+        }
+
+        let score = 0;
+        if (normalizedHint === normalizedItem) {
+          score = 100;
+        } else if (normalizedItem.includes(normalizedHint)) {
+          score = 80;
+        } else if (normalizedHint.includes(normalizedItem)) {
+          score = 70;
+        } else {
+          const itemTokens = normalizedItem.split(" ");
+          const overlap = hintTokens.filter((token) => itemTokens.includes(token)).length;
+          score = overlap * 10;
+        }
+
+        if (!bestMatch || score > bestMatch.score) {
+          bestMatch = {
+            floorIndex,
+            itemLabel: item.label,
+            score,
+          };
+        }
+      }
+    }
+
+    if (!bestMatch || bestMatch.score <= 0) {
+      return null;
+    }
+
+    return bestMatch;
+  };
+
+  useEffect(() => {
+    if (
+      !openFloorplanRequest ||
+      openFloorplanRequest.token === null ||
+      openFloorplanRequest.token === undefined
+    ) {
+      return;
+    }
+
+    if (lastHandledFloorplanTokenRef.current === openFloorplanRequest.token) {
+      return;
+    }
+
+    lastHandledFloorplanTokenRef.current = openFloorplanRequest.token;
+    setShowThumbnailFullscreen(false);
+    setIsFullscreenOpen(true);
+
+    if (openFloorplanRequest.roomLabel) {
+      const match = findBestDirectoryMatch(openFloorplanRequest.roomLabel);
+      if (match) {
+        setSelectedFloorIndex(match.floorIndex);
+        setSelectedDirectoryItemLabel(match.itemLabel);
+        return;
+      }
+    }
+
+    setSelectedDirectoryItemLabel(null);
+  }, [openFloorplanRequest, selectedPresetDestination?.floorDirectory]);
 
   useEffect(() => {
     if (!isFullscreenOpen && !showThumbnailFullscreen) {
@@ -72,7 +178,7 @@ export function DestinationPreviewCard({
 
   useEffect(() => {
     setSelectedDirectoryItemLabel(null);
-  }, [selectedPresetDestination?.label, selectedFloorIndex]);
+  }, [selectedPresetDestination?.label]);
 
   if (!destination) {
     return null;
@@ -112,7 +218,7 @@ export function DestinationPreviewCard({
         onCopyShareLink={onCopyShareLink ?? (() => {})}
       />
       <section
-        className={`pointer-events-none fixed z-[900] overlay-enter transition-all duration-300 md:absolute md:left-4 md:right-auto md:w-[420px] max-md:landscape:right-3 max-md:landscape:left-auto max-md:landscape:w-80 ${
+        className={`pointer-events-none fixed z-900 overlay-enter transition-all duration-300 md:absolute md:left-4 md:right-auto md:w-105 max-md:landscape:right-3 max-md:landscape:left-auto max-md:landscape:w-80 ${
           showTopDirectionBanner
             ? "md:top-24 max-md:landscape:top-20"
             : "md:top-4 max-md:landscape:top-4"
@@ -158,7 +264,7 @@ export function DestinationPreviewCard({
                 : "max-h-[35vh] md:max-h-[60vh] opacity-100"
             }`}
           >
-            <div className="relative mt-1 block h-[16vh] min-h-[80px] max-h-44 w-full md:h-56 max-md:landscape:h-24 max-md:landscape:min-h-[60px]">
+            <div className="relative mt-1 block h-[16vh] min-h-20 max-h-44 w-full md:h-56 max-md:landscape:h-24 max-md:landscape:min-h-15">
               <img
                 src={cardImageSrc}
                 alt={`${previewLabel} preview`}
@@ -222,7 +328,7 @@ export function DestinationPreviewCard({
 
       {isFullscreenOpen ? (
         <section
-          className="pointer-events-auto absolute inset-0 z-[1100] flex items-center justify-center bg-slate-950/55 p-4"
+          className="pointer-events-auto absolute inset-0 z-1100 flex items-center justify-center bg-slate-950/55 p-4"
           onClick={() => setIsFullscreenOpen(false)}
           aria-label="Fullscreen destination preview"
         >
@@ -342,7 +448,7 @@ export function DestinationPreviewCard({
 
       {showThumbnailFullscreen ? (
         <section
-          className="pointer-events-auto absolute inset-0 z-[1100] flex items-center justify-center bg-slate-950/80 p-4"
+          className="pointer-events-auto absolute inset-0 z-1100 flex items-center justify-center bg-slate-950/80 p-4"
           onClick={() => setShowThumbnailFullscreen(false)}
           aria-label="Fullscreen thumbnail view"
         >

@@ -1,42 +1,43 @@
 import {
   List,
-  Mic,
-  MicOff,
   Map as MapIcon,
   Target,
   NavigationOff,
   QrCode,
+  Mic,
+  MicOff,
+  MessageCircle,
 } from "lucide-react";
 import type { EntryMode, Point } from "../types/navigation";
 
 type FloatingActionButtonsProps = {
   activeEntryMode: EntryMode;
-  isVoiceListening: boolean;
-  voiceRecognitionSupported: boolean;
   startPoint: Point;
   onOpenDestinationListModal: () => void;
-  onToggleVoiceCommand: () => void;
   onChangeMode: () => void;
   onRecenter: (point: Point) => void;
   onClearRoute: () => void;
   onOpenQrCode?: () => void;
   hasQrCode?: boolean;
+  isMicrophoneEnabled?: boolean;
+  onToggleMicrophone?: () => void;
+  onOpenAiConversation?: () => void;
 };
 
 export function FloatingActionButtons({
   activeEntryMode,
-  isVoiceListening,
-  voiceRecognitionSupported,
   startPoint,
   hasDestination,
   isPreviewCardCollapsed,
   onOpenDestinationListModal,
-  onToggleVoiceCommand,
   onChangeMode,
   onRecenter,
   onClearRoute,
   onOpenQrCode,
   hasQrCode,
+  isMicrophoneEnabled,
+  onToggleMicrophone,
+  onOpenAiConversation,
 }: FloatingActionButtonsProps & {
   hasDestination?: boolean;
   isPreviewCardCollapsed?: boolean;
@@ -52,7 +53,41 @@ export function FloatingActionButtons({
       }`}
     >
       <div className="flex flex-col items-end gap-3 pointer-events-auto md:flex-row md:items-center max-md:landscape:flex max-md:landscape:flex-row max-md:landscape:items-center">
-        {activeEntryMode === "quick" ? (
+        {onOpenAiConversation && activeEntryMode === "ai" && (
+          <button
+            type="button"
+            onClick={onOpenAiConversation}
+            className="flex items-center justify-center md:justify-start h-12 w-12 md:px-4 md:w-auto rounded-full border border-cyan-300 bg-cyan-600 font-semibold text-white shadow-lg transition hover:bg-cyan-500"
+            aria-label="Open AI conversation"
+          >
+            <MessageCircle size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
+            <span className="hidden md:inline text-base">AI Chat</span>
+          </button>
+        )}
+
+        {onToggleMicrophone && activeEntryMode === "ai" && (
+          <button
+            type="button"
+            onClick={onToggleMicrophone}
+            className={`flex items-center justify-center md:justify-start h-12 w-12 md:px-4 md:w-auto rounded-full border font-semibold shadow-lg transition ${
+              isMicrophoneEnabled
+                ? "border-green-300 bg-green-600 text-white hover:bg-green-500"
+                : "border-red-300 bg-white text-red-600 hover:bg-red-50"
+            }`}
+            aria-label={isMicrophoneEnabled ? "Turn microphone off" : "Turn microphone on"}
+          >
+            {isMicrophoneEnabled ? (
+              <Mic size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
+            ) : (
+              <MicOff size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
+            )}
+            <span className="hidden md:inline text-base">
+              {isMicrophoneEnabled ? "Microphone On" : "Microphone Off"}
+            </span>
+          </button>
+        )}
+
+        {activeEntryMode === "quick" && (
           <button
             type="button"
             onClick={() => {
@@ -63,23 +98,6 @@ export function FloatingActionButtons({
           >
             <List size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
             <span className="hidden md:inline text-base">Destinations</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onToggleVoiceCommand}
-            disabled={!voiceRecognitionSupported}
-            className="flex items-center justify-center md:justify-start h-12 w-12 md:px-4 md:w-auto rounded-full border border-cyan-300 bg-cyan-600 font-semibold text-white shadow-lg transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label={isVoiceListening ? "Stop voice" : "Start voice"}
-          >
-            {isVoiceListening ? (
-              <MicOff size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
-            ) : (
-              <Mic size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
-            )}
-            <span className="hidden md:inline text-base">
-              {isVoiceListening ? "Stop voice" : "Voice"}
-            </span>
           </button>
         )}
 

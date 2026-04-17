@@ -33,10 +33,7 @@ import {
   encodePacket,
 } from "./utils/routePacket";
 import {
-  captureAudioFromMicrophone,
-  isFastAPIVoiceSupportedInBrowser,
   isBrowserSpeechRecognitionSupported,
-  isHFTranscriptionConfigured,
 } from "./utils/voiceRecognition";
 import {
   isOpenAIConfigured,
@@ -44,14 +41,9 @@ import {
   chatWithAI,
 } from "./services/chatgpt";
 import {
-  isOpenAITranscriptionConfigured,
-} from "./services/openaiTranscription";
-import {
-  transcribeRealtimeWithOpenAI,
-  transcribeRealtimeWithFastAPI,
   transcribeRealtimeWithBrowserSpeech,
 } from "./services/realtimeTranscription";
-import { isEnglishText } from "./utils/languageDetection";
+import { getLanguageConfidenceScore, isValidLanguage } from "./utils/languageDetection";
 import type {
   Destination,
   EntryMode,
@@ -60,7 +52,10 @@ import type {
   PresetDestination,
   RouteInfo,
 } from "./types/navigation";
-import type { ConversationMessage } from "./types/conversation";
+import type {
+  ConversationMessage,
+  ConversationMessageAction,
+} from "./types/conversation";
 
 const MAP_CENTER: LatLngExpression = [GUARD_HOUSE.lat, GUARD_HOUSE.lon];
 
@@ -91,6 +86,7 @@ function App() {
   const [entryMode, setEntryMode] = useState<EntryMode | null>(null);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
+  const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(true);
   const [showDestinationDetails, setShowDestinationDetails] = useState(false);
   const [isPreviewCardCollapsed, setIsPreviewCardCollapsed] = useState(false);
   const [showDestinationListModal, setShowDestinationListModal] =
@@ -99,6 +95,7 @@ function App() {
   const [showScannedRouteWelcome, setShowScannedRouteWelcome] = useState(false);
   const [isScannedRoute, setIsScannedRoute] = useState(false);
   const voiceCaptureAbortRef = useRef<AbortController | null>(null);
+  const lastSentVoiceTranscriptRef = useRef<{ text: string; at: number } | null>(null);
 
   // AI Conversation state
   const [showAiConversation, setShowAiConversation] = useState(false);
@@ -106,6 +103,10 @@ function App() {
     ConversationMessage[]
   >([]);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
+  const [openFloorplanRequest, setOpenFloorplanRequest] = useState<{
+    token: number;
+    roomLabel?: string;
+  } | null>(null);
 
   // const isShareLinkPublic = useMemo(() => {
   //   if (PUBLIC_BASE_URL) {
@@ -119,10 +120,7 @@ function App() {
   const startPoint = currentStartPoint;
   const activeEntryMode = entryMode ?? "quick";
   const voiceRecognitionSupported = useMemo(
-    () =>
-      isOpenAITranscriptionConfigured() ||
-      (isHFTranscriptionConfigured() && isFastAPIVoiceSupportedInBrowser()) ||
-      isBrowserSpeechRecognitionSupported(),
+    () => isBrowserSpeechRecognitionSupported(),
     [],
   );
   const selectedPresetDestination = useMemo(
@@ -193,6 +191,7 @@ function App() {
     currentStepIndex >= 0 && route ? route.steps[currentStepIndex] : null;
 
   const showTopDirectionBanner = isSimulationRunning && currentStep !== null;
+  const isQrRouteViewMode = isScannedRoute && !showScannedRouteWelcome;
 
   const buildingPinIcon = useMemo(
     () =>
@@ -337,10 +336,62 @@ function App() {
     }
   };
 
-  const onToggleVoiceCommand = () => {
-    // Open AI conversation modal when voice button is clicked
-    setShowAiConversation(true);
-    setLocationError(null);
+  const normalizeText = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const inferRoomLabelFromMessage = (
+    text: string,
+    matchedDest: PresetDestination,
+  ): string | undefined => {
+    const normalizedMessage = normalizeText(text);
+    if (!normalizedMessage) {
+      return undefined;
+    }
+
+    const messageTokens = normalizedMessage
+      .split(" ")
+      .filter((token) => token.length > 1);
+    const floorDirectory = matchedDest.floorDirectory ?? [];
+
+    let bestMatch: { label: string; score: number } | null = null;
+
+    for (const entry of floorDirectory) {
+      for (const item of entry.items) {
+        const normalizedItem = normalizeText(item.label);
+        if (!normalizedItem) {
+          continue;
+        }
+
+        let score = 0;
+        if (normalizedMessage === normalizedItem) {
+          score = 100;
+        } else if (normalizedItem.includes(normalizedMessage)) {
+          score = 80;
+        } else if (normalizedMessage.includes(normalizedItem)) {
+          score = 70;
+        } else {
+          const itemTokens = normalizedItem.split(" ");
+          const overlap = messageTokens.filter((token) =>
+            itemTokens.includes(token),
+          ).length;
+          score = overlap * 10;
+        }
+
+        if (!bestMatch || score > bestMatch.score) {
+          bestMatch = { label: item.label, score };
+        }
+      }
+    }
+
+    if (!bestMatch || bestMatch.score <= 0) {
+      return undefined;
+    }
+
+    return bestMatch.label;
   };
 
   // Send a text message in the AI conversation
@@ -370,20 +421,38 @@ function App() {
         isNavigating: route !== null,
       });
 
+      const matchedDest =
+        response.action?.type === "navigate"
+          ? PRESET_DESTINATIONS.find(
+              (dest) => dest.label === response.action?.destination,
+            )
+          : null;
+
+      const roomLabelHint = matchedDest
+        ? response.room?.trim() ||
+          inferRoomLabelFromMessage(trimmedMessage, matchedDest)
+        : undefined;
+
       const assistantMessage: ConversationMessage = {
         id: `assistant-${Date.now()}`,
         role: "assistant",
         content: response.message,
         timestamp: Date.now(),
+        action:
+          matchedDest && (matchedDest.floorPlans?.length ?? 0) > 0
+            ? {
+                type: "view-floor-plan",
+                destination: matchedDest.label,
+                label: `View ${compactLabel(matchedDest.label)} Floor Plan`,
+                roomLabel: roomLabelHint,
+              }
+            : undefined,
       };
 
       setConversationMessages((prev) => [...prev, assistantMessage]);
 
       // If AI wants to navigate somewhere, do it immediately
       if (response.action?.type === "navigate") {
-        const matchedDest = PRESET_DESTINATIONS.find(
-          (dest) => dest.label === response.action?.destination,
-        );
         if (matchedDest) {
           // Apply destination and show route immediately
           applyDestination(matchedDest);
@@ -407,187 +476,82 @@ function App() {
 
   // Toggle voice input in conversation mode
   const onToggleConversationVoice = async () => {
+    // Check if microphone is disabled
+    if (!isMicrophoneEnabled) {
+      console.log("[Conversation Voice] Microphone is disabled, cannot record");
+      setLocationError("Microphone is disabled. Enable it in the Mic button to use voice features.");
+      return;
+    }
+
     if (isVoiceListening) {
-      console.log("[Conversation Voice] Stopping voice recognition");
+      console.log("[Conversation Voice] Stopping voice recording");
       stopVoiceRecognition();
       return;
     }
 
     setIsVoiceListening(true);
-    console.log("[Conversation Voice] Starting real-time voice recognition with English-only filtering...");
+    setVoiceFeedback("Recording...");
+    console.log("[Conversation Voice] Starting voice recording (will transcribe after capture)...");
 
     const controller = new AbortController();
     voiceCaptureAbortRef.current = controller;
 
     try {
+      // Local STT path: browser speech recognition only (no cloud transcription)
+      setVoiceFeedback("Listening...");
+      console.log("[Conversation Voice] Using local browser STT...");
+
       let transcript = "";
-
-      // Use OpenAI Whisper with real-time transcription if configured
-      if (isOpenAITranscriptionConfigured()) {
-        console.log("[Conversation Voice] Capturing audio from microphone...");
-        const audioBlob = await captureAudioFromMicrophone({
-          maxDurationMs: 7000,
-          timesliceMs: 150,
-          signal: controller.signal,
-        });
-
-        console.log("[Conversation Voice] Transcribing with OpenAI GPT-4o (real-time, English-only)...");
-        try {
-          // Use real-time transcription with English filtering
-          for await (const update of transcribeRealtimeWithOpenAI(audioBlob, {
-            language: "en",
-            minConfidence: 0.5,
-            signal: controller.signal,
-          })) {
-            console.log("[Conversation Voice] Real-time update:", {
-              interim: update.interim.substring(0, 50),
-              final: update.final.substring(0, 50),
-              isEnglish: update.isEnglish,
-              confidence: update.confidence.toFixed(2),
-            });
-            
-            // Update UI with interim results in real-time
-            if (update.interim) {
-              setVoiceFeedback(`Listening: ${update.interim}`);
-            }
-            
-            // Collect final transcription
-            if (update.final) {
-              transcript = update.final;
-              console.log("[Conversation Voice] Final transcript:", transcript);
-            }
-          }
-        } catch (openaiError) {
-          const errorMsg = openaiError instanceof Error ? openaiError.message : String(openaiError);
-          console.warn(
-            "[Conversation Voice] OpenAI real-time transcription failed:",
-            errorMsg,
-          );
-          
-          // Check if it's a language filter rejection
-          if (errorMsg.includes("English") || errorMsg.includes("confidence")) {
-            setLocationError("Only English language input is accepted. Please try again in English.");
-            setIsVoiceListening(false);
-            setVoiceFeedback(null);
-            return;
-          }
-          
-          // Fall back to browser speech recognition
-          if (isBrowserSpeechRecognitionSupported()) {
-            console.log("[Conversation Voice] Falling back to browser speech recognition...");
-            for await (const update of transcribeRealtimeWithBrowserSpeech({
-              signal: controller.signal,
-            })) {
-              if (update.interim) {
-                setVoiceFeedback(`Listening: ${update.interim}`);
-              }
-              if (update.final) {
-                transcript = update.final;
-              }
-            }
-          } else {
-            throw openaiError;
-          }
-        }
-      } else if (
-        isHFTranscriptionConfigured() &&
-        isFastAPIVoiceSupportedInBrowser()
-      ) {
-        // Fallback to FastAPI if OpenAI not configured
-        console.log("[Conversation Voice] Capturing audio from microphone...");
-        const audioBlob = await captureAudioFromMicrophone({
-          maxDurationMs: 7000,
-          timesliceMs: 150,
-          signal: controller.signal,
-        });
-
-        console.log("[Conversation Voice] Transcribing with FastAPI (real-time, English-only)...");
-        try {
-          const fastApiUrl = (import.meta.env.VITE_FASTAPI_TRANSCRIBE_URL ?? 
-            "https://veccode-wish.hf.space/transcribe").trim();
-          
-          for await (const update of transcribeRealtimeWithFastAPI(audioBlob, fastApiUrl, {
-            minConfidence: 0.5,
-            signal: controller.signal,
-          })) {
-            console.log("[Conversation Voice] FastAPI real-time update:", {
-              final: update.final.substring(0, 50),
-              isEnglish: update.isEnglish,
-              confidence: update.confidence.toFixed(2),
-            });
-            
-            if (update.final) {
-              transcript = update.final;
-            }
-          }
-        } catch (fastApiError) {
-          const errorMsg = fastApiError instanceof Error ? fastApiError.message : String(fastApiError);
-          console.warn(
-            "[Conversation Voice] FastAPI real-time transcription failed:",
-            errorMsg,
-          );
-          
-          // Check if it's a language filter rejection
-          if (errorMsg.includes("English") || errorMsg.includes("confidence")) {
-            setLocationError("Only English language input is accepted. Please try again in English.");
-            setIsVoiceListening(false);
-            setVoiceFeedback(null);
-            return;
-          }
-          
-          // Fall back to browser speech recognition
-          if (isBrowserSpeechRecognitionSupported()) {
-            console.log("[Conversation Voice] Falling back to browser speech recognition...");
-            for await (const update of transcribeRealtimeWithBrowserSpeech({
-              signal: controller.signal,
-            })) {
-              if (update.interim) {
-                setVoiceFeedback(`Listening: ${update.interim}`);
-              }
-              if (update.final) {
-                transcript = update.final;
-              }
-            }
-          } else {
-            throw fastApiError;
-          }
-        }
-      } else {
-        // Final fallback to browser speech recognition with English filtering
-        console.log("[Conversation Voice] Using browser speech recognition (real-time, English-only)...");
-        for await (const update of transcribeRealtimeWithBrowserSpeech({
-          signal: controller.signal,
-        })) {
-          // Update UI with interim results
-          if (update.interim) {
-            setVoiceFeedback(`Listening: ${update.interim}`);
-          }
-          
-          // Collect final transcription
-          if (update.final) {
-            transcript = update.final;
-            console.log("[Conversation Voice] Browser speech final result:", transcript);
-          }
+      for await (const update of transcribeRealtimeWithBrowserSpeech({
+        language: "en",
+        minConfidence: 0.5,
+        signal: controller.signal,
+      })) {
+        if (update.final) {
+          transcript = update.final;
+          console.log("[Conversation Voice] Local STT transcript:", transcript);
         }
       }
 
-      // Validate transcript and check language
+      // Step 3: Validate and send transcript
       const trimmedTranscript = transcript.trim();
-      if (trimmedTranscript && trimmedTranscript.length > 0) {
-        // Double-check that final transcript is English
-        if (isEnglishText(trimmedTranscript)) {
-          console.log("[Conversation Voice] Valid English transcript:", trimmedTranscript);
+      const words = trimmedTranscript.split(/\s+/).filter(Boolean);
+      const hasMeaningfulLength = trimmedTranscript.length >= 8;
+      const hasEnoughWords = words.length >= 2;
+      const hasLetters = /[a-zA-Z]/.test(trimmedTranscript);
+      const languageConfidence = getLanguageConfidenceScore(trimmedTranscript);
+      const hasMeaningfulSpeech = hasLetters && (hasMeaningfulLength || hasEnoughWords);
+
+      if (trimmedTranscript && hasMeaningfulSpeech && languageConfidence >= 0.45) {
+        const normalizedTranscript = trimmedTranscript.toLowerCase();
+        const lastSent = lastSentVoiceTranscriptRef.current;
+        const isDuplicateRecent =
+          Boolean(lastSent) &&
+          lastSent?.text === normalizedTranscript &&
+          Date.now() - lastSent.at < 10000;
+
+        if (isDuplicateRecent) {
+          console.log("[Conversation Voice] Duplicate transcript detected, skipping send:", trimmedTranscript);
+        } else if (isValidLanguage(trimmedTranscript)) {
+          console.log("[Conversation Voice] Valid transcript, sending to AI:", trimmedTranscript);
+          lastSentVoiceTranscriptRef.current = {
+            text: normalizedTranscript,
+            at: Date.now(),
+          };
           await onSendConversationMessage(trimmedTranscript);
         } else {
-          console.warn("[Conversation Voice] Non-English transcript detected:", trimmedTranscript);
-          setLocationError("Only English language input is accepted. Please try again in English.");
+          console.warn("[Conversation Voice] Non-valid transcript detected:", trimmedTranscript);
+          setLocationError("Only English or Tagalog language input is accepted. Please try again.");
         }
       } else {
-        console.log("[Conversation Voice] Empty or invalid transcript, skipping");
+        console.log("[Conversation Voice] Ignoring low-confidence/short transcript:", {
+          transcript: trimmedTranscript,
+          words: words.length,
+          confidence: languageConfidence,
+        });
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       
       // Don't show error messages for common microphone issues
       const isMicPermissionError = errorMessage.includes("Requested device not found") ||
@@ -600,14 +564,12 @@ function App() {
                                    errorMessage.toLowerCase().includes("device") ||
                                    errorMessage.toLowerCase().includes("media");
 
-      // Only log unexpected errors
       if (!isMicPermissionError) {
         console.error("[Conversation Voice] Error:", error);
       } else {
-        console.log("[Conversation Voice] Microphone not available (expected when mic is off)");
+        console.log("[Conversation Voice] Microphone not available");
       }
 
-      // Only show error message for unexpected errors
       if (!isMicPermissionError) {
         const errorMsg: ConversationMessage = {
           id: `error-${Date.now()}`,
@@ -620,6 +582,7 @@ function App() {
     } finally {
       voiceCaptureAbortRef.current = null;
       setIsVoiceListening(false);
+      setVoiceFeedback(null);
     }
   };
 
@@ -634,6 +597,25 @@ function App() {
   const onCloseAiConversation = () => {
     setShowAiConversation(false);
     stopVoiceRecognition();
+  };
+
+  const onViewFloorPlanFromAi = (action: ConversationMessageAction) => {
+    const matchedDest = PRESET_DESTINATIONS.find(
+      (dest) => dest.label === action.destination,
+    );
+
+    if (!matchedDest) {
+      setLocationError("Unable to open floor plan for this destination.");
+      return;
+    }
+
+    applyDestination(matchedDest);
+    setShowDestinationDetails(true);
+    setIsPreviewCardCollapsed(false);
+    setOpenFloorplanRequest({
+      token: Date.now(),
+      roomLabel: action.roomLabel,
+    });
   };
 
   useEffect(() => {
@@ -844,23 +826,68 @@ function App() {
     };
   }, [route, simulationIndex, isSimulationPaused, simulationSpeed]);
 
-  // Auto-reset to welcome page after 3 minutes when AI conversation closes with route
+  // Auto-reset to welcome page after 2 minutes of inactivity (kiosk-safe behavior)
   useEffect(() => {
-    if (!showAiConversation && route && destination) {
-      const resetTimer = window.setTimeout(() => {
-        // Reset to welcome page
-        setDestination(null);
-        setRoute(null);
-        setShowWelcomeModal(true);
-        setEntryMode(null);
-        setConversationMessages([]);
-      }, 180000); // 3 minutes
-
-      return () => {
-        window.clearTimeout(resetTimer);
-      };
+    if (showWelcomeModal) {
+      return;
     }
-  }, [showAiConversation, route, destination]);
+
+    const TIMEOUT_MS = 120000;
+    let resetTimer: number | null = null;
+
+    const resetToWelcome = () => {
+      stopVoiceRecognition();
+      setShowAiConversation(false);
+      setDestination(null);
+      setRoute(null);
+      setRouteError(null);
+      setShowDestinationListModal(false);
+      setShowDestinationDetails(false);
+      setSimulationIndex(null);
+      setIsSimulationPaused(false);
+      setShowNextStopPrompt(false);
+      setHasArrivedAtDestination(false);
+      setIsScannedRoute(false);
+      setShowScannedRouteWelcome(false);
+      setShowQrPreview(false);
+      setConversationMessages([]);
+      setOpenFloorplanRequest(null);
+      setIsAiProcessing(false);
+      setEntryMode(null);
+      setLocationError(null);
+      setShowWelcomeModal(true);
+    };
+
+    const restartTimer = () => {
+      if (resetTimer !== null) {
+        window.clearTimeout(resetTimer);
+      }
+      resetTimer = window.setTimeout(resetToWelcome, TIMEOUT_MS);
+    };
+
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "pointerdown",
+      "pointermove",
+      "keydown",
+      "touchstart",
+      "wheel",
+    ];
+
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, restartTimer, { passive: true });
+    });
+
+    restartTimer();
+
+    return () => {
+      if (resetTimer !== null) {
+        window.clearTimeout(resetTimer);
+      }
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, restartTimer);
+      });
+    };
+  }, [showWelcomeModal, stopVoiceRecognition]);
 
   const visibleStatus = useMemo(() => {
     if (voiceFeedback) {
@@ -904,6 +931,24 @@ function App() {
     setHasArrivedAtDestination(false);
     setIsScannedRoute(false);
     setShowScannedRouteWelcome(false);
+    setOpenFloorplanRequest(null);
+  };
+
+  const onToggleMicrophone = () => {
+    setIsMicrophoneEnabled(!isMicrophoneEnabled);
+    if (!isMicrophoneEnabled) {
+      // Microphone is being turned ON
+      console.log("[Microphone] Microphone enabled");
+      setLocationError(null);
+    } else {
+      // Microphone is being turned OFF
+      console.log("[Microphone] Microphone disabled");
+      // Stop any ongoing voice listening
+      if (isVoiceListening) {
+        stopVoiceRecognition();
+      }
+      setLocationError("Microphone is disabled. Enable it in the Mic button to use voice features.");
+    }
   };
 
   const onChooseNextDestination = () => {
@@ -923,8 +968,10 @@ function App() {
   const onStartScannedRoute = () => {
     setShowScannedRouteWelcome(false);
     setEntryMode("quick");
-    setShowDestinationDetails(true);
-    setIsPreviewCardCollapsed(false);
+    setShowDestinationDetails(false);
+    setIsPreviewCardCollapsed(true);
+    setSimulationIndex(0);
+    setIsSimulationPaused(false);
     // Let RouteBoundsController handle the map fitting
   };
 
@@ -971,11 +1018,13 @@ function App() {
         compactLabel={compactLabel}
       />
 
-      <WelcomeModal
-        show={showWelcomeModal}
-        onChooseEntryMode={onChooseEntryMode}
-        welcomeImage={welcomeRouteImage}
-      />
+      {!isScannedRoute ? (
+        <WelcomeModal
+          show={showWelcomeModal}
+          onChooseEntryMode={onChooseEntryMode}
+          welcomeImage={welcomeRouteImage}
+        />
+      ) : null}
 
       <ScannedRouteWelcome
         show={showScannedRouteWelcome}
@@ -985,23 +1034,28 @@ function App() {
         onCancel={onCancelScannedRoute}
       />
 
-      <AiConversationModal
-        show={showAiConversation}
-        messages={conversationMessages}
-        isListening={isVoiceListening}
-        isProcessing={isAiProcessing}
-        voiceSupported={voiceRecognitionSupported}
-        onClose={onCloseAiConversation}
-        onStartVoice={onStartConversationVoice}
-        onOpenQrCode={() => setShowQrPreview(true)}
-      />
+      {!isQrRouteViewMode ? (
+        <AiConversationModal
+          show={showAiConversation}
+          messages={conversationMessages}
+          isListening={isVoiceListening}
+          isProcessing={isAiProcessing}
+          voiceSupported={voiceRecognitionSupported}
+          onClose={onCloseAiConversation}
+          onStartVoice={onStartConversationVoice}
+          onOpenQrCode={() => setShowQrPreview(true)}
+          onViewFloorPlan={onViewFloorPlanFromAi}
+        />
+      ) : null}
 
-      <QrPreviewModal
-        show={showQrPreview}
-        qrCodeDataUrl={qrCodeDataUrl}
-        onClose={() => setShowQrPreview(false)}
-        onCopyShareLink={onCopyShareLink}
-      />
+      {!isQrRouteViewMode ? (
+        <QrPreviewModal
+          show={showQrPreview}
+          qrCodeDataUrl={qrCodeDataUrl}
+          onClose={() => setShowQrPreview(false)}
+          onCopyShareLink={onCopyShareLink}
+        />
+      ) : null}
 
       <TopDirectionBanner
         show={showTopDirectionBanner && Boolean(currentStep)}
@@ -1010,31 +1064,36 @@ function App() {
         heading={effectiveHeading}
       />
 
-      <DestinationListModal
-        show={showDestinationListModal}
-        destination={destination}
-        destinations={PRESET_DESTINATIONS}
-        onSelectDestination={onSelectPresetDestination}
-        onClose={onCloseDestinationListModal}
-      />
+      {!isQrRouteViewMode ? (
+        <DestinationListModal
+          show={showDestinationListModal}
+          destination={destination}
+          destinations={PRESET_DESTINATIONS}
+          onSelectDestination={onSelectPresetDestination}
+          onClose={onCloseDestinationListModal}
+        />
+      ) : null}
 
-      <DestinationPreviewCard
-        destination={destination}
-        selectedPresetDestination={selectedPresetDestination}
-        showTopDirectionBanner={showTopDirectionBanner}
-        hasArrivedAtDestination={hasArrivedAtDestination}
-        showDestinationDetails={showDestinationDetails}
-        onToggleDestinationDetails={onToggleDestinationDetails}
-        isCollapsed={isPreviewCardCollapsed}
-        onToggleCollapse={() =>
-          setIsPreviewCardCollapsed(!isPreviewCardCollapsed)
-        }
-        compactLabel={compactLabel}
-        fallbackImage={welcomeRouteImage}
-        qrCodeDataUrl={qrCodeDataUrl}
-        onCopyShareLink={onCopyShareLink}
-        isScannedRoute={isScannedRoute}
-      />
+      {!isQrRouteViewMode ? (
+        <DestinationPreviewCard
+          destination={destination}
+          selectedPresetDestination={selectedPresetDestination}
+          showTopDirectionBanner={showTopDirectionBanner}
+          hasArrivedAtDestination={hasArrivedAtDestination}
+          showDestinationDetails={showDestinationDetails}
+          onToggleDestinationDetails={onToggleDestinationDetails}
+          isCollapsed={isPreviewCardCollapsed}
+          onToggleCollapse={() =>
+            setIsPreviewCardCollapsed(!isPreviewCardCollapsed)
+          }
+          compactLabel={compactLabel}
+          fallbackImage={welcomeRouteImage}
+          qrCodeDataUrl={qrCodeDataUrl}
+          onCopyShareLink={onCopyShareLink}
+          isScannedRoute={isScannedRoute}
+          openFloorplanRequest={openFloorplanRequest}
+        />
+      ) : null}
 
       {/* Walk Debugger Un comment this if want to see the fake walking simulation
       {route ? (
@@ -1067,36 +1126,40 @@ function App() {
         </div>
       ) : null} */}
 
-      <FloatingActionButtons
-        activeEntryMode={activeEntryMode}
-        isVoiceListening={isVoiceListening}
-        voiceRecognitionSupported={voiceRecognitionSupported}
-        startPoint={startPoint}
-        hasDestination={!!destination}
-        isPreviewCardCollapsed={isPreviewCardCollapsed}
-        hasQrCode={!!qrCodeDataUrl}
-        onOpenDestinationListModal={onOpenDestinationListModal}
-        onToggleVoiceCommand={onToggleVoiceCommand}
-        onOpenQrCode={() => setShowQrPreview(true)}
-        onChangeMode={() => {
-          stopVoiceRecognition();
-          setShowDestinationListModal(false);
-          setShowWelcomeModal(true);
-        }}
-        onRecenter={(point) => setFocusRequest({ point, zoom: 18 })}
-        onClearRoute={onClearRoute}
-      />
+      {!showWelcomeModal && !isQrRouteViewMode && (
+        <FloatingActionButtons
+          activeEntryMode={activeEntryMode}
+          startPoint={startPoint}
+          hasDestination={!!destination}
+          isPreviewCardCollapsed={isPreviewCardCollapsed}
+          hasQrCode={!!qrCodeDataUrl}
+          isMicrophoneEnabled={isMicrophoneEnabled}
+          onOpenDestinationListModal={onOpenDestinationListModal}
+          onOpenQrCode={() => setShowQrPreview(true)}
+          onChangeMode={() => {
+            stopVoiceRecognition();
+            setShowDestinationListModal(false);
+            setShowWelcomeModal(true);
+          }}
+          onRecenter={(point) => setFocusRequest({ point, zoom: 18 })}
+          onClearRoute={onClearRoute}
+          onToggleMicrophone={onToggleMicrophone}
+          onOpenAiConversation={() => setShowAiConversation(true)}
+        />
+      )}
 
-      <StatusToast message={visibleStatus} />
+      {!isQrRouteViewMode ? <StatusToast message={visibleStatus} /> : null}
 
-      <NextStopPrompt
-        show={showNextStopPrompt}
-        destinationLabel={
-          destination ? compactLabel(destination.label) : "your destination"
-        }
-        onStay={() => setShowNextStopPrompt(false)}
-        onPickAnother={onChooseNextDestination}
-      />
+      {!isQrRouteViewMode ? (
+        <NextStopPrompt
+          show={showNextStopPrompt}
+          destinationLabel={
+            destination ? compactLabel(destination.label) : "your destination"
+          }
+          onStay={() => setShowNextStopPrompt(false)}
+          onPickAnother={onChooseNextDestination}
+        />
+      ) : null}
     </main>
   );
 }

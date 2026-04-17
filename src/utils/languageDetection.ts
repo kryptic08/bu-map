@@ -1,11 +1,10 @@
 /**
- * Language Detection and English Validation Utility
- * Validates text to ensure it contains primarily English content
+ * Language Detection and Validation Utility
+ * Supports English and Tagalog language detection
  */
 
 /**
  * List of common English words for validation
- * Used to verify that transcribed text is in English
  */
 const COMMON_ENGLISH_WORDS = new Set([
   "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "from",
@@ -19,10 +18,35 @@ const COMMON_ENGLISH_WORDS = new Set([
 ]);
 
 /**
- * English character pattern
- * Matches basic ASCII letters, numbers, spaces, and common punctuation
+ * List of common Tagalog words for validation
  */
-const ENGLISH_CHAR_PATTERN = /^[a-zA-Z0-9\s\-.,!?';:()\[\]\/&\"]*$/;
+const COMMON_TAGALOG_WORDS = new Set([
+  "ang", "sa", "ng", "ay", "na", "at", "o", "pero", "para", "ito", "yan", "yun",
+  "ako", "ikaw", "siya", "kami", "tayo", "kayo", "sila",
+  "am", "ay", "mayroon", "may", "wala", "walang",
+  "pumunta", "magpunta", "go", "gumawa", "gawin", "make", "kumuha", "take",
+  "tingnan", "makita", "look", "see", "nagsalita", "sabi", "say", "tanong", "ask",
+  "tulong", "tumulong", "help", "kailangan", "need", "gusto", "want",
+  "piso", "pesos", "building", "opisina", "office", "paaralan", "school",
+  "gusali", "bahay", "house", "kwarto", "room", "piso", "floor", "mapa", "map",
+  "daan", "kalsada", "road", "direksiyon", "direction", "route", "ruta",
+  "hilaga", "north", "timog", "south", "silangan", "east", "kanluran", "west",
+  "saan", "where", "kailan", "when", "bakit", "why", "paano", "how"
+]);
+
+/**
+ * Character pattern for English and Tagalog
+ * Matches ASCII letters, numbers, spaces, and common punctuation
+ */
+const LANGUAGE_CHAR_PATTERN = /^[a-zA-Z0-9\s\-.,!?';:()\[\]\/&\"ñáéíóúàèìòùâêîôûäëïöü]*$/;
+
+/**
+ * Validate if text is primarily in English or Tagalog
+ * Uses multiple heuristics to check for language content
+ */
+export function isValidLanguage(text: string): boolean {
+  return isEnglishText(text) || isTagalogText(text);
+}
 
 /**
  * Validate if text is primarily in English
@@ -35,9 +59,9 @@ export function isEnglishText(text: string): boolean {
 
   const normalized = text.toLowerCase().trim();
 
-  // Check 1: Verify character set (ASCII-based)
-  if (!ENGLISH_CHAR_PATTERN.test(text)) {
-    console.log("[Language Detection] Non-ASCII characters detected:", text);
+  // Check 1: Verify character set
+  if (!LANGUAGE_CHAR_PATTERN.test(text)) {
+    console.log("[Language Detection] Non-compatible characters detected:", text);
     return false;
   }
 
@@ -48,7 +72,6 @@ export function isEnglishText(text: string): boolean {
   }
 
   const englishWordCount = words.filter(word => {
-    // Remove punctuation for matching
     const cleanWord = word.replace(/[^\w]/g, '');
     return COMMON_ENGLISH_WORDS.has(cleanWord);
   }).length;
@@ -60,7 +83,7 @@ export function isEnglishText(text: string): boolean {
   const wordsWithEnglishLetters = words.filter(word => englishLetterPattern.test(word)).length;
   const letterRatio = wordsWithEnglishLetters / words.length;
 
-  console.log("[Language Detection] Analysis:", {
+  console.log("[Language Detection] English Analysis:", {
     text: text.substring(0, 50),
     totalWords: words.length,
     englishWords: englishWordCount,
@@ -76,20 +99,62 @@ export function isEnglishText(text: string): boolean {
 }
 
 /**
- * Filter English words from text, removing non-English tokens
+ * Validate if text is primarily in Tagalog
+ * Uses multiple heuristics to check for Tagalog language content
  */
-export function filterEnglishWords(text: string): string {
+export function isTagalogText(text: string): boolean {
+  if (!text || text.trim().length === 0) {
+    return false;
+  }
+
+  const normalized = text.toLowerCase().trim();
+
+  // Check 1: Verify character set
+  if (!LANGUAGE_CHAR_PATTERN.test(text)) {
+    console.log("[Language Detection] Non-compatible characters detected:", text);
+    return false;
+  }
+
+  // Check 2: Look for common Tagalog words
+  const words = normalized.split(/\s+/).filter(word => word.length > 0);
+  if (words.length === 0) {
+    return false;
+  }
+
+  const tagalogWordCount = words.filter(word => {
+    const cleanWord = word.replace(/[^\w]/g, '');
+    return COMMON_TAGALOG_WORDS.has(cleanWord);
+  }).length;
+
+  const tagalogRatio = tagalogWordCount / words.length;
+
+  console.log("[Language Detection] Tagalog Analysis:", {
+    text: text.substring(0, 50),
+    totalWords: words.length,
+    tagalogWords: tagalogWordCount,
+    tagalogRatio: tagalogRatio.toFixed(2),
+  });
+
+  // Require at least 30% common Tagalog words
+  const isTagalog = tagalogRatio >= 0.3;
+
+  return isTagalog;
+}
+
+/**
+ * Filter valid language words from text
+ */
+export function filterValidLanguageWords(text: string): string {
   if (!text) {
     return "";
   }
 
   const words = text.split(/\s+/);
 
-  // Keep words that appear to be English (contain English letters)
-  const englishLetterPattern = /[a-z]/i;
+  // Keep words that appear to be valid language (contain letters)
+  const languageLetterPattern = /[a-z]/i;
   const filtered = words.filter(word => {
-
-    return englishLetterPattern.test(word) && ENGLISH_CHAR_PATTERN.test(word);
+    return languageLetterPattern.test(word) && LANGUAGE_CHAR_PATTERN.test(word);
   });
 
   return filtered.join(" ");
@@ -97,7 +162,22 @@ export function filterEnglishWords(text: string): string {
 
 /**
  * Get language confidence score (0-1)
- * Returns how confident we are that the text is in English
+ * Returns how confident we are that the text is valid (English or Tagalog)
+ */
+export function getLanguageConfidenceScore(text: string): number {
+  if (!text || text.trim().length === 0) {
+    return 0;
+  }
+
+  const englishScore = getEnglishConfidentScore(text);
+  const tagalogScore = getTagalogConfidentScore(text);
+
+  // Return the highest confidence score
+  return Math.max(englishScore, tagalogScore);
+}
+
+/**
+ * Get English confidence score (0-1)
  */
 export function getEnglishConfidentScore(text: string): number {
   if (!text || text.trim().length === 0) {
@@ -107,7 +187,7 @@ export function getEnglishConfidentScore(text: string): number {
   const normalized = text.toLowerCase().trim();
 
   // Check character set compatibility
-  const charScore = ENGLISH_CHAR_PATTERN.test(text) ? 0.3 : 0;
+  const charScore = LANGUAGE_CHAR_PATTERN.test(text) ? 0.3 : 0;
 
   // Check for common English words
   const words = normalized.split(/\s+/).filter(word => word.length > 0);
@@ -126,15 +206,41 @@ export function getEnglishConfidentScore(text: string): number {
 }
 
 /**
+ * Get Tagalog confidence score (0-1)
+ */
+export function getTagalogConfidentScore(text: string): number {
+  if (!text || text.trim().length === 0) {
+    return 0;
+  }
+
+  const normalized = text.toLowerCase().trim();
+
+  // Check character set compatibility
+  const charScore = LANGUAGE_CHAR_PATTERN.test(text) ? 0.3 : 0;
+
+  // Check for common Tagalog words
+  const words = normalized.split(/\s+/).filter(word => word.length > 0);
+  const tagalogWordCount = words.filter(word => {
+    const cleanWord = word.replace(/[^\w]/g, '');
+    return COMMON_TAGALOG_WORDS.has(cleanWord);
+  }).length;
+  const wordScore = words.length > 0 ? (tagalogWordCount / words.length) * 0.7 : 0;
+
+  return Math.min(1, charScore + wordScore);
+}
+
+/**
  * Detect language from text
- * Returns detected language code (en, es, fr, etc.)
+ * Returns detected language code (en, tl)
  */
 export function detectLanguage(text: string): string {
   if (isEnglishText(text)) {
     return "en";
   }
+  
+  if (isTagalogText(text)) {
+    return "tl";
+  }
 
-  // For now, we only support English detection
-  // In a real-world scenario, you might use a proper language detection library
   return "unknown";
 }

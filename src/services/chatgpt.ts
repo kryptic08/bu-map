@@ -126,7 +126,11 @@ export async function chatWithAI(
     availableDestinations: PresetDestination[];
     isNavigating: boolean;
   },
-): Promise<{ message: string; action?: { type: "navigate"; destination: string } }> {
+): Promise<{
+  message: string;
+  action?: { type: "navigate"; destination: string };
+  room?: string | null;
+}> {
   if (!isOpenAIConfigured()) {
     throw new Error(
       "OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in .env.local",
@@ -159,6 +163,12 @@ ${context.currentLocation ? `Current location: ${context.currentLocation}` : ""}
 ${context.destination ? `Current destination: ${context.destination}` : ""}
 ${context.isNavigating ? "User is currently navigating to a destination." : ""}
 
+LATEST-REQUEST PRIORITY RULE:
+- Always treat the LATEST user message as the highest priority instruction.
+- If the latest user message asks for a different destination than earlier messages, navigate to the latest requested destination.
+- Do not keep navigating to an old destination unless the latest user message explicitly says to continue with it.
+- When the latest message is a navigation request, return an action for that latest request.
+
 You can:
 1. Answer questions about specific rooms, laboratories, offices, and facilities
 2. Tell users which building and floor a room is located on
@@ -170,26 +180,30 @@ You can:
 
 When a user wants to navigate somewhere, respond with JSON that includes an action.
 CRITICAL NAVIGATION RULES:
+- When user asks where a specific room, office, or facility is located, treat it as a navigation request and include an action to the correct building destination.
 - When user asks for "library", "librarian", or library-related rooms → navigate to "Salceda Building" (library is on 2nd floor)
+- When user asks for "ID", "university ID", "identification card", "ID reprint", "lost ID", "defaced ID", "mutilated ID", "faded ID", or "CSAC" → navigate to "Salceda Building" (CSAC office is located in Salceda Building)
 - When user asks for ECB rooms (ECB 12-19, ECB 201-204, CL1-CL6, computer labs) → navigate to "Salceda Building 2 (Computer & Engineering)"
 - When user asks for "gym", "sports", "fitness" → navigate to "BUP GYM"
 - When user asks for "nursing" related rooms → navigate to "Nursing Department"
 - When user asks for "registrar", "enrollment", "transcript", "academic records" → navigate to "Registrar"
 - When user asks for "cashier", "payment", "fees" → navigate to "Administrative Building"
 - When user asks for "health", "medical", "dental", "clinic" → navigate to "Medical and Dental Clinic Bicol Univerity Health Services"
+- If request contains both "ID" and "payment/fee", prioritize ID issuance/reprint at CSAC and navigate to "Salceda Building" unless user explicitly asks for cashier payment window.
 - Always match the EXACT destination label from the NAVIGABLE DESTINATIONS list
 
 Response format for navigation - INCLUDE DETAILED DIRECTIONS:
-{"message": "I'll navigate you to [destination]. [Room name] is located on the [floor] floor of [building]. You can see the floor plan and room location on the map as you navigate there. I'm starting the route from [current location].", "action": {"type": "navigate", "destination": "exact destination label from NAVIGABLE DESTINATIONS"}}
+{"message": "I'll navigate you to [destination]. [Room name] is located on the [floor] floor of [building]. You can see the floor plan and room location on the map as you navigate there. I'm starting the route from [current location].", "action": {"type": "navigate", "destination": "exact destination label from NAVIGABLE DESTINATIONS"}, "room": "exact room/office label if user asked for a specific room, otherwise null"}
 
 For informational questions only (no navigation):
-{"message": "your detailed, helpful response about the location"}
+{"message": "your detailed, helpful response about the location", "room": null}
 
 IMPORTANT: 
 - Use the complete campus directory to provide accurate room and building information
 - When mentioning rooms, always include the building name and floor
 - Be specific about room codes (like SB-11, CL1, ECB 201, etc.)
 - If a user asks about a specific room or office, tell them exactly which building and floor it's on
+- If a user asks for a specific room/office (example: library, cashier, csac, ict lab), include that room/office name in the "room" field
 - For navigation responses, mention the starting point and destination for clarity
 - Include room floor information in your navigation message
 - When users ask about services or fees, refer to the Campus Services section above
@@ -197,10 +211,13 @@ IMPORTANT:
 
 Be friendly, helpful, and conversational. Keep responses concise but informative.`;
 
+  // Keep only recent history so the latest request dominates navigation behavior
+  const recentHistory = conversationHistory.slice(-6);
+
   // Convert conversation history to OpenAI format
   const messages = [
     { role: "system" as const, content: systemPrompt },
-    ...conversationHistory.map((msg) => ({
+    ...recentHistory.map((msg) => ({
       role: msg.role === "user" ? ("user" as const) : ("assistant" as const),
       content: msg.content,
     })),
@@ -247,6 +264,7 @@ Be friendly, helpful, and conversational. Keep responses concise but informative
     const parsedResponse = JSON.parse(content) as {
       message: string;
       action?: { type: "navigate"; destination: string };
+      room?: string | null;
     };
 
     console.log("[ChatGPT] Conversation response:", parsedResponse);
