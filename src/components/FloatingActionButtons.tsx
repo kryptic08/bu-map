@@ -4,8 +4,6 @@ import {
   Target,
   NavigationOff,
   QrCode,
-  Mic,
-  MicOff,
   MessageCircle,
 } from "lucide-react";
 import type { EntryMode, Point } from "../types/navigation";
@@ -19,8 +17,6 @@ type FloatingActionButtonsProps = {
   onClearRoute: () => void;
   onOpenQrCode?: () => void;
   hasQrCode?: boolean;
-  isMicrophoneEnabled?: boolean;
-  onToggleMicrophone?: () => void;
   onOpenAiConversation?: () => void;
 };
 
@@ -35,8 +31,6 @@ export function FloatingActionButtons({
   onClearRoute,
   onOpenQrCode,
   hasQrCode,
-  isMicrophoneEnabled,
-  onToggleMicrophone,
   onOpenAiConversation,
 }: FloatingActionButtonsProps & {
   hasDestination?: boolean;
@@ -60,30 +54,11 @@ export function FloatingActionButtons({
             className="flex items-center justify-center md:justify-start h-12 w-12 md:px-4 md:w-auto rounded-full border border-cyan-300 bg-cyan-600 font-semibold text-white shadow-lg transition hover:bg-cyan-500"
             aria-label="Open AI conversation"
           >
-            <MessageCircle size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
-            <span className="hidden md:inline text-base">AI Chat</span>
-          </button>
-        )}
-
-        {onToggleMicrophone && activeEntryMode === "ai" && (
-          <button
-            type="button"
-            onClick={onToggleMicrophone}
-            className={`flex items-center justify-center md:justify-start h-12 w-12 md:px-4 md:w-auto rounded-full border font-semibold shadow-lg transition ${
-              isMicrophoneEnabled
-                ? "border-green-300 bg-green-600 text-white hover:bg-green-500"
-                : "border-red-300 bg-white text-red-600 hover:bg-red-50"
-            }`}
-            aria-label={isMicrophoneEnabled ? "Turn microphone off" : "Turn microphone on"}
-          >
-            {isMicrophoneEnabled ? (
-              <Mic size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
-            ) : (
-              <MicOff size={20} className="md:mr-2 shrink-0 md:size-[22px]" />
-            )}
-            <span className="hidden md:inline text-base">
-              {isMicrophoneEnabled ? "Microphone On" : "Microphone Off"}
-            </span>
+            <MessageCircle
+              size={20}
+              className="md:mr-2 shrink-0 md:size-[22px]"
+            />
+            <span className="hidden md:inline text-base">AI Assistant</span>
           </button>
         )}
 
@@ -125,7 +100,7 @@ export function FloatingActionButtons({
           <span className="hidden md:inline text-base">Recenter</span>
         </button>
 
-        {hasQrCode && onOpenQrCode && (
+        {activeEntryMode === "quick" && hasQrCode && onOpenQrCode && (
           <button
             type="button"
             onClick={onOpenQrCode}

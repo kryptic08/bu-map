@@ -5,25 +5,72 @@ type WelcomeModalProps = {
   show: boolean;
   onChooseEntryMode: (mode: EntryMode) => void;
   welcomeImage: string;
+  modeOnly?: boolean;
 };
 
 export function WelcomeModal({
   show,
   onChooseEntryMode,
   welcomeImage,
+  modeOnly = false,
 }: WelcomeModalProps) {
   const [step, setStep] = useState<"welcome" | "instructions" | "mode">(
-    "welcome",
+    modeOnly ? "mode" : "welcome",
   );
 
   useEffect(() => {
     if (show) {
-      setStep("welcome");
+      setStep(modeOnly ? "mode" : "welcome");
     }
-  }, [show]);
+  }, [show, modeOnly]);
 
   if (!show) {
     return null;
+  }
+
+  if (modeOnly) {
+    return (
+      <section className="pointer-events-none absolute inset-0 z-1000 flex items-center justify-center bg-slate-900/35 p-3 md:p-6 max-md:landscape:p-2">
+        <div className="pointer-events-auto relative w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
+          <div className="p-5 md:p-8">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-7">
+              <p className="font-['Space_Grotesk'] text-3xl font-bold leading-tight tracking-tight text-slate-900 md:text-4xl">
+                Choose Navigation Mode
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-700 md:text-base">
+                Select how you want to navigate right now.
+              </p>
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => onChooseEntryMode("ai")}
+                className="rounded-2xl border border-slate-300 bg-white p-5 text-left text-slate-900 transition hover:-translate-y-px hover:border-slate-400 hover:shadow-sm md:p-6"
+              >
+                <p className="text-lg font-bold md:text-xl">AI Voice Command</p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  Speak naturally and let AI detect your destination.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onChooseEntryMode("quick")}
+                className="rounded-2xl border border-slate-300 bg-white p-5 text-left transition hover:-translate-y-px hover:border-slate-400 hover:shadow-sm md:p-6"
+              >
+                <p className="text-lg font-bold text-slate-900 md:text-xl">
+                  Quick Destination
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  Tap from preset destinations for a fast route.
+                </p>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -62,8 +109,8 @@ export function WelcomeModal({
                     Bicol University Campus Navigation Assistant
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600 md:text-base">
-                    Find offices, classrooms, and service points quickly with guided
-                    map directions, voice support, and QR route sharing.
+                    Find offices, classrooms, and service points quickly with
+                    guided map directions, voice support, and QR route sharing.
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -88,7 +135,8 @@ export function WelcomeModal({
                 </button>
 
                 <p className="text-center text-xs text-slate-600 md:text-sm">
-                  Tap to view detailed instructions before selecting your navigation mode.
+                  Tap to view detailed instructions before selecting your
+                  navigation mode.
                 </p>
               </>
             ) : null}
@@ -102,24 +150,45 @@ export function WelcomeModal({
 
                   <div className="mt-4 grid gap-3 text-sm text-slate-700 sm:grid-cols-2 md:text-base">
                     <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 md:p-4">
-                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-bold text-slate-700">1</span>
+                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-bold text-slate-700">
+                        1
+                      </span>
                       <p>Select your navigation method after this screen.</p>
                     </div>
                     <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 md:p-4">
-                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-bold text-slate-700">2</span>
-                      <p>In AI Voice mode, speak clearly in English or Tagalog.</p>
+                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-bold text-slate-700">
+                        2
+                      </span>
+                      <p>
+                        In AI Voice mode, speak clearly in English or Tagalog.
+                      </p>
                     </div>
                     <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 md:p-4">
-                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-bold text-slate-700">3</span>
-                      <p>In Quick Destination mode, tap a destination from the list.</p>
+                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-bold text-slate-700">
+                        3
+                      </span>
+                      <p>
+                        In Quick Destination mode, tap a destination from the
+                        list.
+                      </p>
                     </div>
                     <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 md:p-4">
-                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-bold text-slate-700">4</span>
-                      <p>Scan the QR code to get the navigation route on another device.</p>
+                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-bold text-slate-700">
+                        4
+                      </span>
+                      <p>
+                        Scan the QR code to get the navigation route on another
+                        device.
+                      </p>
                     </div>
                     <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 md:p-4 sm:col-span-2">
-                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-bold text-slate-700">5</span>
-                      <p>Follow the map path and top direction instruction banner.</p>
+                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-bold text-slate-700">
+                        5
+                      </span>
+                      <p>
+                        Follow the map path and top direction instruction
+                        banner.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -160,7 +229,9 @@ export function WelcomeModal({
                     onClick={() => onChooseEntryMode("ai")}
                     className="rounded-2xl border border-slate-300 bg-white p-5 text-left text-slate-900 transition hover:-translate-y-px hover:border-slate-400 hover:shadow-sm md:p-6"
                   >
-                    <p className="text-lg font-bold md:text-xl">AI Voice Command</p>
+                    <p className="text-lg font-bold md:text-xl">
+                      AI Voice Command
+                    </p>
                     <p className="mt-2 text-sm leading-relaxed text-slate-600">
                       Speak naturally and let AI detect your destination.
                     </p>

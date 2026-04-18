@@ -32,18 +32,17 @@ import {
   decodePacket,
   encodePacket,
 } from "./utils/routePacket";
-import {
-  isBrowserSpeechRecognitionSupported,
-} from "./utils/voiceRecognition";
+import { isBrowserSpeechRecognitionSupported } from "./utils/voiceRecognition";
 import {
   isOpenAIConfigured,
   processVoiceCommandWithChatGPT,
   chatWithAI,
 } from "./services/chatgpt";
+import { transcribeRealtimeWithBrowserSpeech } from "./services/realtimeTranscription";
 import {
-  transcribeRealtimeWithBrowserSpeech,
-} from "./services/realtimeTranscription";
-import { getLanguageConfidenceScore, isValidLanguage } from "./utils/languageDetection";
+  getLanguageConfidenceScore,
+  isValidLanguage,
+} from "./utils/languageDetection";
 import type {
   Destination,
   EntryMode,
@@ -58,6 +57,7 @@ import type {
 } from "./types/conversation";
 
 const MAP_CENTER: LatLngExpression = [GUARD_HOUSE.lat, GUARD_HOUSE.lon];
+const WELCOME_SEEN_KEY = "bu-map-welcome-seen-v1";
 
 const PUBLIC_BASE_URL = (import.meta.env.VITE_PUBLIC_BASE_URL ?? "").trim();
 
@@ -83,10 +83,18 @@ function App() {
   const [gyroEnabled] = useState(false);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(true);
+  const [hasSeenWelcomeIntro, setHasSeenWelcomeIntro] = useState<boolean>(
+    () => {
+      try {
+        return window.localStorage.getItem(WELCOME_SEEN_KEY) === "1";
+      } catch {
+        return false;
+      }
+    },
+  );
   const [entryMode, setEntryMode] = useState<EntryMode | null>(null);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
-  const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(true);
   const [showDestinationDetails, setShowDestinationDetails] = useState(false);
   const [isPreviewCardCollapsed, setIsPreviewCardCollapsed] = useState(false);
   const [showDestinationListModal, setShowDestinationListModal] =
@@ -95,7 +103,10 @@ function App() {
   const [showScannedRouteWelcome, setShowScannedRouteWelcome] = useState(false);
   const [isScannedRoute, setIsScannedRoute] = useState(false);
   const voiceCaptureAbortRef = useRef<AbortController | null>(null);
-  const lastSentVoiceTranscriptRef = useRef<{ text: string; at: number } | null>(null);
+  const lastSentVoiceTranscriptRef = useRef<{
+    text: string;
+    at: number;
+  } | null>(null);
 
   // AI Conversation state
   const [showAiConversation, setShowAiConversation] = useState(false);
@@ -316,10 +327,20 @@ function App() {
   };
 
   const onChooseEntryMode = (mode: EntryMode) => {
+    if (!hasSeenWelcomeIntro) {
+      setHasSeenWelcomeIntro(true);
+      try {
+        window.localStorage.setItem(WELCOME_SEEN_KEY, "1");
+      } catch {
+        // Ignore storage failures in kiosk/private browser modes.
+      }
+    }
+
     setEntryMode(mode);
     setShowWelcomeModal(false);
     setLocationError(null);
     setShowDestinationListModal(mode === "quick");
+    setShowAiConversation(mode === "ai");
 
     if (mode !== "ai") {
       stopVoiceRecognition();
@@ -327,12 +348,6 @@ function App() {
 
     if (mode === "quick") {
       setShowDestinationDetails(false);
-    }
-
-    // Open AI conversation modal when AI voice command is selected
-    if (mode === "ai") {
-      setShowAiConversation(true);
-      // Voice will auto-start via the modal's useEffect
     }
   };
 
@@ -476,13 +491,6 @@ function App() {
 
   // Toggle voice input in conversation mode
   const onToggleConversationVoice = async () => {
-    // Check if microphone is disabled
-    if (!isMicrophoneEnabled) {
-      console.log("[Conversation Voice] Microphone is disabled, cannot record");
-      setLocationError("Microphone is disabled. Enable it in the Mic button to use voice features.");
-      return;
-    }
-
     if (isVoiceListening) {
       console.log("[Conversation Voice] Stopping voice recording");
       stopVoiceRecognition();
@@ -491,7 +499,9 @@ function App() {
 
     setIsVoiceListening(true);
     setVoiceFeedback("Recording...");
-    console.log("[Conversation Voice] Starting voice recording (will transcribe after capture)...");
+    console.log(
+      "[Conversation Voice] Starting voice recording (will transcribe after capture)...",
+    );
 
     const controller = new AbortController();
     voiceCaptureAbortRef.current = controller;
@@ -520,9 +530,14 @@ function App() {
       const hasEnoughWords = words.length >= 2;
       const hasLetters = /[a-zA-Z]/.test(trimmedTranscript);
       const languageConfidence = getLanguageConfidenceScore(trimmedTranscript);
-      const hasMeaningfulSpeech = hasLetters && (hasMeaningfulLength || hasEnoughWords);
+      const hasMeaningfulSpeech =
+        hasLetters && (hasMeaningfulLength || hasEnoughWords);
 
-      if (trimmedTranscript && hasMeaningfulSpeech && languageConfidence >= 0.45) {
+      if (
+        trimmedTranscript &&
+        hasMeaningfulSpeech &&
+        languageConfidence >= 0.45
+      ) {
         const normalizedTranscript = trimmedTranscript.toLowerCase();
         const lastSent = lastSentVoiceTranscriptRef.current;
         const isDuplicateRecent =
@@ -531,38 +546,54 @@ function App() {
           Date.now() - lastSent.at < 10000;
 
         if (isDuplicateRecent) {
-          console.log("[Conversation Voice] Duplicate transcript detected, skipping send:", trimmedTranscript);
+          console.log(
+            "[Conversation Voice] Duplicate transcript detected, skipping send:",
+            trimmedTranscript,
+          );
         } else if (isValidLanguage(trimmedTranscript)) {
-          console.log("[Conversation Voice] Valid transcript, sending to AI:", trimmedTranscript);
+          console.log(
+            "[Conversation Voice] Valid transcript, sending to AI:",
+            trimmedTranscript,
+          );
           lastSentVoiceTranscriptRef.current = {
             text: normalizedTranscript,
             at: Date.now(),
           };
           await onSendConversationMessage(trimmedTranscript);
         } else {
-          console.warn("[Conversation Voice] Non-valid transcript detected:", trimmedTranscript);
-          setLocationError("Only English or Tagalog language input is accepted. Please try again.");
+          console.warn(
+            "[Conversation Voice] Non-valid transcript detected:",
+            trimmedTranscript,
+          );
+          setLocationError(
+            "Only English or Tagalog language input is accepted. Please try again.",
+          );
         }
       } else {
-        console.log("[Conversation Voice] Ignoring low-confidence/short transcript:", {
-          transcript: trimmedTranscript,
-          words: words.length,
-          confidence: languageConfidence,
-        });
+        console.log(
+          "[Conversation Voice] Ignoring low-confidence/short transcript:",
+          {
+            transcript: trimmedTranscript,
+            words: words.length,
+            confidence: languageConfidence,
+          },
+        );
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
       // Don't show error messages for common microphone issues
-      const isMicPermissionError = errorMessage.includes("Requested device not found") ||
-                                   errorMessage.includes("Permission denied") ||
-                                   errorMessage.includes("NotAllowedError") ||
-                                   errorMessage.includes("NotFoundError") ||
-                                   errorMessage.includes("AbortError") ||
-                                   errorMessage.includes("cancelled") ||
-                                   errorMessage.toLowerCase().includes("microphone") ||
-                                   errorMessage.toLowerCase().includes("device") ||
-                                   errorMessage.toLowerCase().includes("media");
+      const isMicPermissionError =
+        errorMessage.includes("Requested device not found") ||
+        errorMessage.includes("Permission denied") ||
+        errorMessage.includes("NotAllowedError") ||
+        errorMessage.includes("NotFoundError") ||
+        errorMessage.includes("AbortError") ||
+        errorMessage.includes("cancelled") ||
+        errorMessage.toLowerCase().includes("microphone") ||
+        errorMessage.toLowerCase().includes("device") ||
+        errorMessage.toLowerCase().includes("media");
 
       if (!isMicPermissionError) {
         console.error("[Conversation Voice] Error:", error);
@@ -583,14 +614,6 @@ function App() {
       voiceCaptureAbortRef.current = null;
       setIsVoiceListening(false);
       setVoiceFeedback(null);
-    }
-  };
-
-  // Start voice recognition (called automatically by modal)
-  const onStartConversationVoice = () => {
-    // Only start if not already listening
-    if (!isVoiceListening && !isAiProcessing) {
-      onToggleConversationVoice();
     }
   };
 
@@ -934,23 +957,6 @@ function App() {
     setOpenFloorplanRequest(null);
   };
 
-  const onToggleMicrophone = () => {
-    setIsMicrophoneEnabled(!isMicrophoneEnabled);
-    if (!isMicrophoneEnabled) {
-      // Microphone is being turned ON
-      console.log("[Microphone] Microphone enabled");
-      setLocationError(null);
-    } else {
-      // Microphone is being turned OFF
-      console.log("[Microphone] Microphone disabled");
-      // Stop any ongoing voice listening
-      if (isVoiceListening) {
-        stopVoiceRecognition();
-      }
-      setLocationError("Microphone is disabled. Enable it in the Mic button to use voice features.");
-    }
-  };
-
   const onChooseNextDestination = () => {
     if (destination) {
       setCurrentStartPoint({ lat: destination.lat, lon: destination.lon });
@@ -1023,6 +1029,7 @@ function App() {
           show={showWelcomeModal}
           onChooseEntryMode={onChooseEntryMode}
           welcomeImage={welcomeRouteImage}
+          modeOnly={hasSeenWelcomeIntro}
         />
       ) : null}
 
@@ -1042,7 +1049,7 @@ function App() {
           isProcessing={isAiProcessing}
           voiceSupported={voiceRecognitionSupported}
           onClose={onCloseAiConversation}
-          onStartVoice={onStartConversationVoice}
+          onToggleVoice={onToggleConversationVoice}
           onOpenQrCode={() => setShowQrPreview(true)}
           onViewFloorPlan={onViewFloorPlanFromAi}
         />
@@ -1133,17 +1140,16 @@ function App() {
           hasDestination={!!destination}
           isPreviewCardCollapsed={isPreviewCardCollapsed}
           hasQrCode={!!qrCodeDataUrl}
-          isMicrophoneEnabled={isMicrophoneEnabled}
           onOpenDestinationListModal={onOpenDestinationListModal}
           onOpenQrCode={() => setShowQrPreview(true)}
           onChangeMode={() => {
             stopVoiceRecognition();
+            setShowAiConversation(false);
             setShowDestinationListModal(false);
             setShowWelcomeModal(true);
           }}
           onRecenter={(point) => setFocusRequest({ point, zoom: 18 })}
           onClearRoute={onClearRoute}
-          onToggleMicrophone={onToggleMicrophone}
           onOpenAiConversation={() => setShowAiConversation(true)}
         />
       )}

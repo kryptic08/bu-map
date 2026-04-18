@@ -27,7 +27,9 @@ import thumbRegistrar from "../assets/Thumbnails/RegistrarThumb.jpg";
 import thumbSalceda from "../assets/Thumbnails/SalcedaBuildingThumb.jpg";
 import thumbAutomotive from "../assets/Thumbnails/AutomotiveThumb.jpg";
 import thumbEntrep from "../assets/Thumbnails/EntrepThumb.jpg";
-
+import thumbCanteen from "../assets/Thumbnails/Canteen_Thumb.jpeg";
+import thumbResearch from "../assets/Thumbnails/Research_Thumb.jpeg";
+import thumbRotc from "../assets/Thumbnails/Rotc_Thumb.jpeg";
 import type { Point, PresetDestination } from "../types/navigation";
 
 export const GUARD_HOUSE: Point = { lat: 13.29540325, lon: 123.486557525 };
@@ -71,7 +73,7 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     keywords: ["gym", "sports", "fitness"],
   },
   {
-    label: "Salceda Building 2 (Computer & Engineering)",
+    label: "CESD Building",
     lat: 13.2958673,
     lon: 123.4848151,
     image: fpComEng2nd,
@@ -171,6 +173,7 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     lat: 13.29635,
     lon: 123.48479,
     image: fpCanteen,
+    thumbnail: thumbCanteen,
     floorPlans: [
       { label: "1st Floor", image: fpCanteen },
     ],
@@ -237,7 +240,7 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     keywords: ["registrar", "records", "enrollment", "documents", "transcript", "otr", "certification", "tor", "honorable dismissal", "loa", "leave of absence", "credentials", "authentication"],
   },
   {
-    label: "Administrative Building",
+    label: "Administration Building",
     lat: 13.2957586,
     lon: 123.4851484,
     image: fpAdmin1st,
@@ -386,7 +389,7 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     keywords: ["salceda", "salceda building", "building", "sb", "library", "lib", "librarian", "circulation", "reference", "csac", "id", "university id", "identification card", "id reprint", "lost id", "defaced id", "mutilated id", "faded id", "insurance claims", "authority to travel", "student activities"],
   },
   {
-    label: "Electronical Technology Department",
+    label: "Electronics Technology Department",
     lat: 13.29567,
     lon: 123.48419,
     image: fpComEng1st,
@@ -497,6 +500,7 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     lat: 13.29550,
     lon: 123.48455,
     image: destinationAdminImage,
+    thumbnail: thumbResearch,
     summary: "Office handling research grants, development programs, and extension services.",
     details: [
       "Located southwest of the Administration Building and near Automotive",
@@ -509,6 +513,7 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     lat: 13.29555,
     lon: 123.48446,
     image: destinationAdminImage,
+    thumbnail: thumbRotc,
     summary: "Command post and administrative hub for the university's ROTC unit.",
     details: [
       "Situated next to the Research Development and Extension Office",
