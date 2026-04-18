@@ -43,6 +43,51 @@ function buildInstruction(step: OsrmStep): string {
   return `Continue ${modifier ?? "ahead"}${road}`;
 }
 
+/**
+ * Create a simple fallback route when OSRM fails
+ * Generates a straight-line path with waypoints for campus navigation
+ */
+function createFallbackRoute(start: Point, destination: Destination): RouteInfo {
+  console.log("[Router] Creating fallback route for campus navigation");
+  
+  // Calculate distance in meters (simple Haversine approximation)
+  const R = 6371000; // Earth radius in meters
+  const dLat = (destination.lat - start.lat) * (Math.PI / 180);
+  const dLon = (destination.lon - start.lon) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(start.lat * (Math.PI / 180)) * Math.cos(destination.lat * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+  
+  // Create waypoints between start and destination
+  const numWaypoints = Math.max(3, Math.ceil(distance / 100)); // One waypoint every ~100m
+  const points: [number, number][] = [];
+  
+  for (let i = 0; i <= numWaypoints; i++) {
+    const t = i / numWaypoints;
+    const lat = start.lat + (destination.lat - start.lat) * t;
+    const lon = start.lon + (destination.lon - start.lon) * t;
+    points.push([lat, lon]);
+  }
+  
+  const steps: RouteStep[] = [
+    {
+      instruction: `Head towards ${destination.label}`,
+      distance: distance
+    }
+  ];
+  
+  return {
+    distance,
+    duration: Math.round(distance / 1.4), // ~1.4 m/s walking speed
+    profile: "foot",
+    points,
+    steps,
+  };
+}
+
+
 async function fetchOsrmRoute(start: Point, destination: Point, signal?: AbortSignal): Promise<{ route: OsrmRoute, profile: "foot" | "driving" }> {
   const waypoints = `${start.lon},${start.lat};${destination.lon},${destination.lat}`;
   
@@ -110,14 +155,15 @@ export async function planBestRoutes(
 
   // 3. Initiate new fetch
   const planPromise = (async () => {
-    const { route, profile } = await fetchOsrmRoute(start, destination, signal);
-    
-    // Convert GeoJSON [lon, lat] coordinates to our [lat, lon] tuples
-    const points: [number, number][] = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
-    const steps: RouteStep[] = route.legs.flatMap((leg) =>
-      leg.steps.map((step) => ({
-        instruction: buildInstruction(step),
-        distance: step.distance,
+    try {
+      const { route, profile } = await fetchOsrmRoute(start, destination, signal);
+      
+      // Convert GeoJSON [lon, lat] coordinates to our [lat, lon] tuples
+      const points: [number, number][] = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+      const steps: RouteStep[] = route.legs.flatMap((leg) =>
+        leg.steps.map((step) => ({
+          instruction: buildInstruction(step),
+          distance: step.distance,
       }))
     );
 
@@ -131,6 +177,13 @@ export async function planBestRoutes(
 
     ROUTE_CACHE.set(key, { updatedAt: Date.now(), value: routeInfo });
     return routeInfo;
+    } catch (error) {
+      console.warn("[Router] OSRM route failed, using campus fallback:", error);
+      // Fallback for campus areas where OSRM may not have complete data
+      const routeInfo = createFallbackRoute(start, destination);
+      ROUTE_CACHE.set(key, { updatedAt: Date.now(), value: routeInfo });
+      return routeInfo;
+    }
   })();
 
   ROUTE_INFLIGHT.set(key, planPromise);

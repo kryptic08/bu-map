@@ -65,8 +65,8 @@ export const CAMPUS_BUILDINGS: BuildingInfo[] = [
   {
     code: "ECB",
     name: "Center for Computer & Engineering Studies",
-    fullName: "Center for Computer and Engineering Studies Building",
-    aliases: ["cces", "computer and engineering studies", "computer studies", "engineering", "ecb"],
+    fullName: "Center for Computer and Engineering Studies / Salceda Building 2",
+    aliases: ["cces", "computer and engineering studies", "computer studies", "engineering", "ecb", "salceda building 2", "salceda 2", "sb2"],
     rooms: [
       // First Floor
       { code: "LOBBY", name: "Lobby", floor: 1, aliases: ["entrance", "main lobby"] },
@@ -95,7 +95,7 @@ export const CAMPUS_BUILDINGS: BuildingInfo[] = [
       { code: "ECB-201", name: "ECB 201", floor: 2, aliases: ["ecb201", "ecb-201"] },
       { code: "ECB-202", name: "ECB 202", floor: 2, aliases: ["ecb202", "ecb-202"] },
       { code: "ECB-203", name: "ECB 203", floor: 2, aliases: ["ecb203", "ecb-203"] },
-      { code: "ECB-204", name: "ECB 204", floor: 2, aliases: ["ecb204", "ecb-204"] },
+      { code: "ECB-204", name: "ECB 204", floor: 2, aliases: ["ecb204", "ecb-204", "salceda building 2", "salceda 2", "sb2"] },
     ],
   },
   {
@@ -360,3 +360,196 @@ export function getRoomsByBuilding(buildingCode: string): RoomInfo[] {
   );
   return building ? building.rooms : [];
 }
+
+/**
+ * CAMPUS SERVICES AND TRANSACTIONS GUIDE
+ * Information about key campus offices and services available to students
+ */
+
+export const CAMPUS_SERVICES = {
+  registrar: {
+    office: "Registrar's Office",
+    building: "Administration Building",
+    floor: 1,
+    contact: "Academic Records & Enrollment Services",
+    services: [
+      "Opening of Cost Recovery Program (CRP)",
+      "Dropping of Subjects",
+      "Adding or Changing of Subjects",
+      "Application for Leave of Absence (LOA)",
+      "Official Transcript of Records (OTR)",
+      "Authentication of Academic Credentials",
+      "Honorable Dismissal",
+      "Certifications (Grades, Enrollment, GWA, Good Moral Character, etc.)",
+    ],
+  },
+  library: {
+    office: "Library Services",
+    building: "Salceda Building",
+    floor: 2,
+    contact: "Academic Support Services",
+    services: [
+      "Borrowing of Books",
+      "Library Permit Issuance",
+      "Student Borrower's Card",
+      "Referral Letters",
+      "Online Document Delivery",
+      "Research Support",
+    ],
+  },
+  health: {
+    office: "Medical and Dental Clinic",
+    building: "Medical and Dental Clinic",
+    floor: 1,
+    contact: "Bicol University Health Services (BUHS)",
+    services: [
+      "Medical Consultation and Treatment",
+      "Medical Examination",
+      "Dental Consultation and Treatment",
+      "Dental Examination",
+    ],
+  },
+  cashier: {
+    office: "Cashier's Office",
+    building: "Administration Building",
+    floor: 1,
+    contact: "Financial Transactions",
+    services: [
+      "Payment Processing",
+      "Certification Fees",
+      "Identification Card Fees",
+      "Transcript of Record",
+      "Adding/Dropping/Changing Subjects",
+      "Thesis Fee Collection",
+      "Practice Teaching Fees",
+    ],
+    fees: {
+      certification: "20.00",
+      authentication: "10.00",
+      corReprinting: "20.00",
+      completionForm: "20.00",
+      identificationCard: "75.00",
+      honorableDismissal: "75.00",
+      transcriptPerPage: "30.00",
+      addDropChangePerSubject: "10.00",
+      thesisFee: "1200.00",
+      onJobTrainingFee: "200.00",
+      practiceTeachingFee: "1000.00",
+    },
+  },
+  csac: {
+    office: "CSAC Office",
+    building: "Salceda Building",
+    floor: 1,
+    contact: "Academic Services & Clearance",
+    services: [
+      "Endorsement of insurance claims",
+      "Distribution of university identification card",
+      "Endorsement for re-printing of university ID",
+      "Endorsement for authority to travel",
+      "Recognition of college-based organizations",
+      "Approval of in-campus student activities",
+    ],
+  },
+  css: {
+    office: "Center for Student Services (CSS)",
+    building: "Center for Student Services",
+    floor: 1,
+    contact: "Student Support Services",
+    departments: [
+      "College Publication",
+      "Guidance Office",
+      "NSTP Office",
+    ],
+  },
+  rdeo: {
+    office: "Research Development and Extension Office",
+    building: "Research Development and Extension Office",
+    floor: 1,
+    contact: "Academic Research Support",
+    services: [
+      "Receiving and Endorsing Research Proposals",
+      "Receiving and Recording Monitoring Reports",
+      "Research Capabilities Training for Faculty and Students",
+      "Recommendation to Research Forums",
+    ],
+  },
+  supplyOffice: {
+    office: "Supply Management Office (SPMO)",
+    building: "Supply office",
+    floor: 1,
+    contact: "Procurement & Materials",
+    services: [
+      "Procurement through DBM-Ps",
+      "Disposal of Unserviceable Properties",
+      "Contract Implementation and Payment Processing",
+    ],
+  },
+  procurementManagement: {
+    office: "Procurement Management Office",
+    building: "BAC Office",
+    floor: 1,
+    contact: "Bidding & Procurement",
+    services: [
+      "PPMP to APP Consolidation",
+      "Sale of Bidding Documents",
+      "Processing of Public Bidding Projects",
+      "Procurement Contract Management",
+    ],
+  },
+  financeOffice: {
+    office: "Finance Office / Budget Office",
+    building: "Administration Building",
+    floor: 2,
+    contact: "Financial Planning & Budgeting",
+    services: [
+      "Issuance of Certificate of Availability of Funds (CAF)",
+      "Obligation Request and Status (ORS)",
+      "Budget Utilization Request and Status (BURS)",
+    ],
+  },
+};
+
+/**
+ * Get formatted campus services directory for AI context
+ */
+export function getCampusServicesText(): string {
+  let output = "BICOL UNIVERSITY POLANGUI - CAMPUS SERVICES & TRANSACTIONS\n\n";
+
+  output += "KEY SERVICES FOR STUDENTS:\n\n";
+
+  output += "REGISTRAR'S OFFICE (Administration Building, Floor 1)\n";
+  output += "- Academic Records & Enrollment Services\n";
+  output += "- Services: Transcript of Records, Certifications, Subject Changes, Leave of Absence\n";
+  output += "- Subject-related fees: ₱10.00 per subject for adding/dropping/changing\n";
+  output += "- Transcript fee: ₱30.00 per page\n\n";
+
+  output += "LIBRARY (Salceda Building, Floor 2)\n";
+  output += "- Borrowing books and research materials\n";
+  output += "- Online document delivery and referral letters\n";
+  output += "- Student borrower's card and permits\n\n";
+
+  output += "HEALTH SERVICES - Medical and Dental Clinic\n";
+  output += "- Medical and Dental consultation and treatment\n";
+  output += "- Medical and dental examinations\n";
+  output += "- Health clearance services\n\n";
+
+  output += "CASHIER'S OFFICE (Administration Building, Floor 1)\n";
+  output += "- All fee collection and payment processing\n";
+  output += "- ID Card: ₱75.00 | Honorable Dismissal: ₱75.00\n";
+  output += "- Certifications (various): ₱20.00 | Authentication: ₱10.00\n";
+  output += "- Thesis Fee: ₱1,200.00 | Practice Teaching: ₱1,000.00\n\n";
+
+  output += "CSAC OFFICE (Salceda Building, Floor 1)\n";
+  output += "- Academic clearances and endorsements\n";
+  output += "- Student ID card distribution\n";
+  output += "- Student activity approvals\n\n";
+
+  output += "CENTER FOR STUDENT SERVICES (CSS)\n";
+  output += "- Student guidance and counseling\n";
+  output += "- NSTP (National Service Training Program) Office\n";
+  output += "- College Publication Office\n\n";
+
+  return output;
+}
+

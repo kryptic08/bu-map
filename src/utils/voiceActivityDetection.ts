@@ -24,11 +24,11 @@ export type VADCallbacks = {
 };
 
 const DEFAULT_CONFIG: Required<VADConfig> = {
-  speechThreshold: 20, // Adjust based on microphone sensitivity
-  silenceDuration: 1500, // 1.5 seconds of silence ends recording
-  minSpeechDuration: 500, // Minimum 0.5 seconds to be considered speech
-  maxRecordingDuration: 10000, // Maximum 10 seconds per recording
-  checkInterval: 100, // Check every 100ms
+  speechThreshold: 25, // Balanced sensitivity - catches speech but avoids false positives
+  silenceDuration: 1000, // 1 second of silence ends recording (faster response)
+  minSpeechDuration: 300, // Minimum 0.3 seconds to be considered speech
+  maxRecordingDuration: 5000, // Maximum 5 seconds per recording (faster completion)
+  checkInterval: 50, // Check every 50ms (more responsive)
 };
 
 /**
