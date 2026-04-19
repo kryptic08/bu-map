@@ -1029,7 +1029,6 @@ function App() {
           show={showWelcomeModal}
           onChooseEntryMode={onChooseEntryMode}
           welcomeImage={welcomeRouteImage}
-          modeOnly={hasSeenWelcomeIntro}
         />
       ) : null}
 
@@ -1050,6 +1049,7 @@ function App() {
           voiceSupported={voiceRecognitionSupported}
           onClose={onCloseAiConversation}
           onToggleVoice={onToggleConversationVoice}
+          onSendMessage={onSendConversationMessage}
           onOpenQrCode={() => setShowQrPreview(true)}
           onViewFloorPlan={onViewFloorPlanFromAi}
         />

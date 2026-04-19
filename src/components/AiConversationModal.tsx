@@ -1,5 +1,5 @@
-import { Bot, Mic, X, QrCode } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Bot, Mic, QrCode, SendHorizontal, X } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type {
   ConversationMessage,
   ConversationMessageAction,
@@ -13,6 +13,7 @@ type AiConversationModalProps = {
   voiceSupported: boolean;
   onClose: () => void;
   onToggleVoice: () => void;
+  onSendMessage: (message: string) => void | Promise<void>;
   onOpenQrCode?: () => void;
   onViewFloorPlan?: (action: ConversationMessageAction) => void;
 };
@@ -25,10 +26,24 @@ export function AiConversationModal({
   voiceSupported,
   onClose,
   onToggleVoice,
+  onSendMessage,
   onOpenQrCode,
   onViewFloorPlan,
 }: AiConversationModalProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [inputValue, setInputValue] = useState("");
+
+  const onSubmitMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const trimmed = inputValue.trim();
+    if (!trimmed || isProcessing) {
+      return;
+    }
+
+    await onSendMessage(trimmed);
+    setInputValue("");
+  };
 
   useEffect(() => {
     if (show) {
@@ -96,24 +111,9 @@ export function AiConversationModal({
               Campus Guide
             </h3>
             <p className="mb-8 text-sm leading-relaxed text-slate-500">
-              Speak naturally to ask about building locations, offices, or how
-              to get around Bicol University.
+              Type your destination or question to get navigation help around
+              Bicol University.
             </p>
-
-            <div className="w-full space-y-3 text-left">
-              <p className="pl-1 text-xs font-bold uppercase tracking-wider text-slate-400">
-                You can ask things like:
-              </p>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 shadow-sm">
-                "Where is the library?"
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 shadow-sm">
-                "Take me to the Computer Lab"
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 shadow-sm">
-                "Where do I get my ID?"
-              </div>
-            </div>
           </div>
         ) : (
           <div className="space-y-4 pb-4">
@@ -170,80 +170,50 @@ export function AiConversationModal({
         )}
       </div>
 
-      {/* Voice Control Footer */}
+      {/* Input Footer */}
       <div className="shrink-0 rounded-t-3xl border-t border-slate-200 bg-white p-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)] z-10 transition-all">
-        <div className="flex flex-col items-center justify-center">
-          <div className="relative mb-3 flex items-center justify-center">
-            {/* Animated mic rings when listening */}
-            {isListening && (
-              <>
-                <div
-                  className="absolute inset-0 block animate-ping rounded-full bg-sky-400 opacity-20"
-                  style={{ transform: "scale(1.4)" }}
-                />
-                <div
-                  className="absolute inset-0 block animate-ping rounded-full bg-sky-400 opacity-20"
-                  style={{ transform: "scale(1.8)", animationDelay: "0.2s" }}
-                />
-              </>
-            )}
-
-            <button
-              type="button"
-              onClick={onToggleVoice}
-              disabled={!voiceSupported || isProcessing}
-              className={`relative z-10 flex h-16 w-16 items-center justify-center rounded-full shadow-xl transition-all duration-300 ${
-                !voiceSupported
-                  ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                  : isProcessing
-                    ? "bg-cyan-300 text-white cursor-not-allowed"
-                    : isListening
-                      ? "bg-sky-500 text-white hover:bg-sky-600 scale-110"
-                      : "bg-cyan-600 text-white hover:bg-cyan-700 hover:scale-105"
-              }`}
-              title={
-                !voiceSupported
-                  ? "Voice is not supported on this browser"
-                  : isListening
-                    ? "Tap to stop listening"
-                    : "Tap to start listening"
-              }
-              aria-label={isListening ? "Stop listening" : "Start listening"}
-            >
-              {isProcessing ? (
-                <div className="flex gap-1">
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white [animation-delay:-0.2s]"></span>
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white [animation-delay:-0.1s]"></span>
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white"></span>
-                </div>
-              ) : (
-                <Mic
-                  className={`h-7 w-7 ${isListening ? "animate-pulse" : ""}`}
-                />
-              )}
-            </button>
-          </div>
-
-          <p
-            className={`text-[11px] font-bold uppercase tracking-wider transition-colors duration-300 ${
-              !voiceSupported
-                ? "text-slate-400"
-                : isProcessing
-                  ? "text-cyan-500"
-                  : isListening
-                    ? "text-sky-500"
-                    : "text-slate-500"
-            }`}
+        <form onSubmit={onSubmitMessage} className="flex items-center gap-2">
+          <label htmlFor="ai-chat-input" className="sr-only">
+            Type a message for AI assistant
+          </label>
+          <input
+            id="ai-chat-input"
+            type="text"
+            value={inputValue}
+            onChange={(event) => setInputValue(event.target.value)}
+            placeholder="Type your destination or question..."
+            disabled={isProcessing}
+            className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm text-slate-800 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+            autoComplete="off"
+          />
+          <button
+            type="submit"
+            disabled={isProcessing || inputValue.trim().length === 0}
+            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-600 text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            aria-label="Send message"
+            title="Send message"
           >
-            {!voiceSupported
-              ? "Voice Not Supported"
-              : isProcessing
-                ? "Processing..."
-                : isListening
-                  ? "Tap to Stop"
-                  : "Tap to Speak"}
-          </p>
-        </div>
+            <SendHorizontal className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleVoice}
+            disabled={!voiceSupported || isProcessing}
+            className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm transition ${
+              !voiceSupported
+                ? "cursor-not-allowed bg-slate-300 text-slate-500"
+                : isProcessing
+                  ? "cursor-not-allowed bg-cyan-300"
+                  : isListening
+                    ? "bg-sky-500 hover:bg-sky-600"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+            }`}
+            aria-label={isListening ? "Stop listening" : "Start listening"}
+            title={isListening ? "Stop listening" : "Tap to Speak"}
+          >
+            <Mic className={`h-5 w-5 ${isListening ? "animate-pulse" : ""}`} />
+          </button>
+        </form>
       </div>
     </section>
   );
