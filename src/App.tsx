@@ -295,8 +295,8 @@ function App() {
 
         if (aiResponse.destination) {
           // ChatGPT identified a destination - find and navigate to it
-          const matchedPreset = PRESET_DESTINATIONS.find(
-            (dest) => dest.label === aiResponse.destination,
+          const matchedPreset = resolvePresetFromAiDestination(
+            aiResponse.destination,
           );
 
           if (matchedPreset) {
@@ -437,6 +437,36 @@ function App() {
     return bestMatch.label;
   };
 
+  const resolvePresetFromAiDestination = (
+    aiDestination: string | null | undefined,
+  ): PresetDestination | null => {
+    const trimmedDestination = aiDestination?.trim() ?? "";
+    if (!trimmedDestination) {
+      return null;
+    }
+
+    const exactMatch = PRESET_DESTINATIONS.find(
+      (dest) => normalizeText(dest.label) === normalizeText(trimmedDestination),
+    );
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    const fallbackMatch = resolvePresetFromPrompt(
+      trimmedDestination,
+      PRESET_DESTINATIONS,
+    );
+    if (fallbackMatch) {
+      console.warn("[AI Conversation] Resolved AI destination with fallback:", {
+        requested: trimmedDestination,
+        matched: fallbackMatch.label,
+      });
+      return fallbackMatch;
+    }
+
+    return null;
+  };
+
   // Send a text message in the AI conversation
   const onSendConversationMessage = async (messageText: string) => {
     // Validate message - trim and check if not empty
@@ -466,9 +496,7 @@ function App() {
 
       const matchedDest =
         response.action?.type === "navigate"
-          ? PRESET_DESTINATIONS.find(
-              (dest) => dest.label === response.action?.destination,
-            )
+          ? resolvePresetFromAiDestination(response.action?.destination)
           : null;
 
       const roomLabelHint = matchedDest
@@ -715,9 +743,7 @@ function App() {
   };
 
   const onViewFloorPlanFromAi = (action: ConversationMessageAction) => {
-    const matchedDest = PRESET_DESTINATIONS.find(
-      (dest) => dest.label === action.destination,
-    );
+    const matchedDest = resolvePresetFromAiDestination(action.destination);
 
     if (!matchedDest) {
       setLocationError("Unable to open floor plan for this destination.");
