@@ -1,5 +1,5 @@
-import { Bot, Mic, QrCode, SendHorizontal, X } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Bot, Mic, QrCode, X } from "lucide-react";
+import { useEffect, useRef } from "react";
 import type {
   ConversationMessage,
   ConversationMessageAction,
@@ -8,12 +8,13 @@ import type {
 type AiConversationModalProps = {
   show: boolean;
   messages: ConversationMessage[];
+  suggestions: string[];
   isListening: boolean;
   isProcessing: boolean;
   voiceSupported: boolean;
   onClose: () => void;
   onToggleVoice: () => void;
-  onSendMessage: (message: string) => void | Promise<void>;
+  onSelectSuggestion: (message: string) => void | Promise<void>;
   onOpenQrCode?: () => void;
   onViewFloorPlan?: (action: ConversationMessageAction) => void;
 };
@@ -21,29 +22,17 @@ type AiConversationModalProps = {
 export function AiConversationModal({
   show,
   messages,
+  suggestions,
   isListening,
   isProcessing,
   voiceSupported,
   onClose,
   onToggleVoice,
-  onSendMessage,
+  onSelectSuggestion,
   onOpenQrCode,
   onViewFloorPlan,
 }: AiConversationModalProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [inputValue, setInputValue] = useState("");
-
-  const onSubmitMessage = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const trimmed = inputValue.trim();
-    if (!trimmed || isProcessing) {
-      return;
-    }
-
-    await onSendMessage(trimmed);
-    setInputValue("");
-  };
 
   useEffect(() => {
     if (show) {
@@ -111,8 +100,8 @@ export function AiConversationModal({
               Campus Guide
             </h3>
             <p className="mb-8 text-sm leading-relaxed text-slate-500">
-              Type your destination or question to get navigation help around
-              Bicol University.
+              Tap the microphone button and speak your destination or question
+              to get navigation help around Bicol University.
             </p>
           </div>
         ) : (
@@ -170,31 +159,32 @@ export function AiConversationModal({
         )}
       </div>
 
-      {/* Input Footer */}
+      {/* Voice Footer */}
       <div className="shrink-0 rounded-t-3xl border-t border-slate-200 bg-white p-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)] z-10 transition-all">
-        <form onSubmit={onSubmitMessage} className="flex items-center gap-2">
-          <label htmlFor="ai-chat-input" className="sr-only">
-            Type a message for AI assistant
-          </label>
-          <input
-            id="ai-chat-input"
-            type="text"
-            value={inputValue}
-            onChange={(event) => setInputValue(event.target.value)}
-            placeholder="Type your destination or question..."
-            disabled={isProcessing}
-            className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm text-slate-800 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-            autoComplete="off"
-          />
-          <button
-            type="submit"
-            disabled={isProcessing || inputValue.trim().length === 0}
-            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-600 text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-            aria-label="Send message"
-            title="Send message"
-          >
-            <SendHorizontal className="h-5 w-5" />
-          </button>
+        {suggestions.length > 0 ? (
+          <div className="mb-4">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              Suggestions
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => {
+                    void onSelectSuggestion(suggestion);
+                  }}
+                  disabled={isProcessing || isListening}
+                  className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex items-center justify-center gap-3">
           <button
             type="button"
             onClick={onToggleVoice}
@@ -213,7 +203,12 @@ export function AiConversationModal({
           >
             <Mic className={`h-5 w-5 ${isListening ? "animate-pulse" : ""}`} />
           </button>
-        </form>
+          <p className="text-xs font-semibold text-slate-500">
+            {isListening
+              ? "Listening now..."
+              : "Tap microphone to speak"}
+          </p>
+        </div>
       </div>
     </section>
   );

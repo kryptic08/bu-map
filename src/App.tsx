@@ -1124,6 +1124,88 @@ function App() {
     }
   };
 
+  const conversationSuggestions = useMemo(() => {
+    const pushUnique = (list: string[], value: string) => {
+      const key = normalizeText(value);
+      if (!key) {
+        return;
+      }
+
+      const exists = list.some((item) => normalizeText(item) === key);
+      if (!exists) {
+        list.push(value);
+      }
+    };
+
+    const suggestions: string[] = [];
+
+    if (conversationMessages.length === 0) {
+      pushUnique(suggestions, "Take me to cashier");
+      pushUnique(suggestions, "Where is the registrar?");
+      pushUnique(suggestions, "Take me to Salceda Building");
+      pushUnique(suggestions, "Where is the clinic?");
+      return suggestions;
+    }
+
+    const lastAssistantMessage = [...conversationMessages]
+      .reverse()
+      .find((message) => message.role === "assistant");
+    const lastUserMessage = [...conversationMessages]
+      .reverse()
+      .find((message) => message.role === "user");
+    const latestContext = normalizeText(
+      `${lastAssistantMessage?.content ?? ""} ${lastUserMessage?.content ?? ""}`,
+    );
+
+    if (route && destination) {
+      pushUnique(suggestions, "What is my next direction?");
+      pushUnique(suggestions, "How far am I from the destination?");
+
+      if (selectedPresetDestination?.floorPlans?.length) {
+        pushUnique(
+          suggestions,
+          `Show me the floor plan of ${selectedPresetDestination.label}`,
+        );
+      }
+
+      pushUnique(suggestions, "Take me to cashier");
+    } else {
+      pushUnique(suggestions, "Take me to cashier");
+      pushUnique(suggestions, "Take me to registrar");
+      pushUnique(suggestions, "Where is the library?");
+      pushUnique(suggestions, "Take me to Nursing Department");
+    }
+
+    if (latestContext.includes("cashier") || latestContext.includes("payment")) {
+      pushUnique(suggestions, "Navigate to Administration Building");
+      pushUnique(suggestions, "What are the cashier office hours?");
+    }
+
+    if (latestContext.includes("registrar") || latestContext.includes("enrollment")) {
+      pushUnique(suggestions, "Navigate to Registrar");
+      pushUnique(suggestions, "What services does registrar handle?");
+    }
+
+    if (latestContext.includes("library") || latestContext.includes("salceda")) {
+      pushUnique(suggestions, "Navigate to Salceda Building");
+      pushUnique(suggestions, "Which floor is the library?");
+    }
+
+    if (selectedPresetDestination) {
+      pushUnique(
+        suggestions,
+        `Tell me about ${selectedPresetDestination.label}`,
+      );
+    }
+
+    return suggestions.slice(0, 5);
+  }, [
+    conversationMessages,
+    destination,
+    route,
+    selectedPresetDestination,
+  ]);
+
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-slate-100 font-[Manrope] text-slate-900">
       <CampusMapView
@@ -1171,12 +1253,13 @@ function App() {
         <AiConversationModal
           show={showAiConversation}
           messages={conversationMessages}
+          suggestions={conversationSuggestions}
           isListening={isVoiceListening}
           isProcessing={isAiProcessing}
           voiceSupported={voiceRecognitionSupported}
           onClose={onCloseAiConversation}
           onToggleVoice={onToggleConversationVoice}
-          onSendMessage={onSendConversationMessage}
+          onSelectSuggestion={onSendConversationMessage}
           onOpenQrCode={() => setShowQrPreview(true)}
           onViewFloorPlan={onViewFloorPlanFromAi}
         />
