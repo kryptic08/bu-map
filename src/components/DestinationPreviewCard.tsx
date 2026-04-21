@@ -80,9 +80,9 @@ export function DestinationPreviewCard({
     } | null = null;
 
     for (const floorEntry of floorDirectory) {
-      const floorIndex = (selectedPresetDestination?.floorPlans ?? []).findIndex(
-        (floorPlan) => floorPlan.label === floorEntry.floorLabel,
-      );
+      const floorIndex = (
+        selectedPresetDestination?.floorPlans ?? []
+      ).findIndex((floorPlan) => floorPlan.label === floorEntry.floorLabel);
 
       if (floorIndex < 0) {
         continue;
@@ -103,7 +103,9 @@ export function DestinationPreviewCard({
           score = 70;
         } else {
           const itemTokens = normalizedItem.split(" ");
-          const overlap = hintTokens.filter((token) => itemTokens.includes(token)).length;
+          const overlap = hintTokens.filter((token) =>
+            itemTokens.includes(token),
+          ).length;
           score = overlap * 10;
         }
 
@@ -192,11 +194,7 @@ export function DestinationPreviewCard({
       (entry) => entry.floorLabel === activeFloorLabel,
     ) ?? null;
   const activeDirectoryItems: DirectoryItem[] =
-    activeFloorDirectory?.items ??
-    (selectedPresetDestination?.details ?? []).map((detail) => ({
-      label: detail,
-      marker: [50, 35] as [number, number],
-    }));
+    activeFloorDirectory?.items ?? [];
   const selectedDirectoryItem =
     activeDirectoryItems.find(
       (item) => item.label === selectedDirectoryItemLabel,

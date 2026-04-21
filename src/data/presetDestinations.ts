@@ -1,5 +1,3 @@
-import destinationAdminImage from "../assets/destination-admin.svg";
-
 // New floor plan images
 import fpAdmin1st from "../assets/Floor Plan/AdminBuilding_1stFloor.png";
 import fpAdmin2nd from "../assets/Floor Plan/AdminBuilding_2ndFloor.png";
@@ -18,6 +16,8 @@ import fpElectrical1st from "../assets/Floor Plan/Electrical_1stFloor.png";
 import fpElectrical2nd from "../assets/Floor Plan/Electrical_2ndFloor.png";
 import fpResearchDevelopment1st from "../assets/Floor Plan/Research_Development_1stFloor.png";
 import fpRotc1st from "../assets/Floor Plan/ROTC_1stFloor.png";
+import fpDormstel1st from "../assets/Floor Plan/Dormstel_FlorrPlan.png";
+import fpCss1st from "../assets/Floor Plan/CSS_FloorPlan.png";
 
 // Thumbnails
 import thumbAdmin from "../assets/Thumbnails/AdminBuildingThumb.jpg";
@@ -210,7 +210,7 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     label: "Entrepreneurship Department",
     lat: 13.29649,
     lon: 123.48445,
-    image: destinationAdminImage,
+    image: thumbEntrep,
     thumbnail: thumbEntrep,
     summary: "Academic department for entrepreneurship and food technology studies.",
     details: [
@@ -443,8 +443,19 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     label: "Dormstel Building",
     lat: 13.296839,
     lon: 123.484218,
-    image: destinationAdminImage,
+    image: fpDormstel1st,
     thumbnail: thumbDormstel,
+    floorPlans: [
+      { label: "1st Floor", image: fpDormstel1st },
+    ],
+    floorDirectory: [
+      {
+        floorLabel: "1st Floor",
+        items: [
+          { label: "DORMSTEL", marker: [30, 46] },
+        ],
+      },
+    ],
     summary: "Dormitory and hostel facility serving the university community.",
     details: [
       "Provides accommodation for students and guests",
@@ -456,8 +467,22 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     label: "Center for Student Services",
     lat: 13.29615,
     lon: 123.48502,
-    image: destinationAdminImage,
+    image: fpCss1st,
     thumbnail: thumbStudentServices,
+    floorPlans: [
+      { label: "1st Floor", image: fpCss1st },
+    ],
+    floorDirectory: [
+      {
+        floorLabel: "1st Floor",
+        items: [
+          { label: "College Publication", marker: [20, 35] },
+          { label: "Guidance Office", marker: [15, 65] },
+          { label: "NSTP Office", marker: [77, 33] },
+          { label: "Center for Student Services (CSS) Office", marker: [78, 63] },
+        ],
+      },
+    ],
     summary: "Hub for various student support operations and organizations.",
     details: [
       "Houses offices for student welfare and activities",
