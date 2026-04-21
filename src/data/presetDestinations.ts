@@ -16,6 +16,8 @@ import fpSalceda2nd from "../assets/Floor Plan/SalcedaBuilding_2ndFloor.png";
 import fpAutomotive1st from "../assets/Floor Plan/Automotive_1stFloor.png";
 import fpElectrical1st from "../assets/Floor Plan/Electrical_1stFloor.png";
 import fpElectrical2nd from "../assets/Floor Plan/Electrical_2ndFloor.png";
+import fpResearchDevelopment1st from "../assets/Floor Plan/Research_Development_1stFloor.png";
+import fpRotc1st from "../assets/Floor Plan/ROTC_1stFloor.png";
 
 // Thumbnails
 import thumbAdmin from "../assets/Thumbnails/AdminBuildingThumb.jpg";
@@ -485,8 +487,19 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     label: "Research Development and Extension Office",
     lat: 13.29550,
     lon: 123.48455,
-    image: destinationAdminImage,
+    image: fpResearchDevelopment1st,
     thumbnail: thumbResearch,
+    floorPlans: [
+      { label: "1st Floor", image: fpResearchDevelopment1st },
+    ],
+    floorDirectory: [
+      {
+        floorLabel: "1st Floor",
+        items: [
+          { label: "Research Development and Extension Office", marker: [50, 50] },
+        ],
+      },
+    ],
     summary: "Office handling research grants, development programs, and extension services.",
     details: [
       "Located southwest of the Administration Building and near Automotive",
@@ -498,8 +511,19 @@ export const PRESET_DESTINATIONS: PresetDestination[] = [
     label: "Headquarters ROTC office",
     lat: 13.29555,
     lon: 123.48446,
-    image: destinationAdminImage,
+    image: fpRotc1st,
     thumbnail: thumbRotc,
+    floorPlans: [
+      { label: "1st Floor", image: fpRotc1st },
+    ],
+    floorDirectory: [
+      {
+        floorLabel: "1st Floor",
+        items: [
+          { label: "ROTC HEADQUARTERS", marker: [50, 50] },
+        ],
+      },
+    ],
     summary: "Command post and administrative hub for the university's ROTC unit.",
     details: [
       "Situated next to the Research Development and Extension Office",
