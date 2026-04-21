@@ -107,7 +107,7 @@ export const CAMPUS_SERVICES_DATABASE: ServiceInfo[] = [
     fee: 20,
     feeDescription: "Per certification",
     details: [
-      "Grades (Certification of Grades)",
+      "Certificate of Grade (COG) / Certification of Grades",
       "Registration/Enrollment Status",
       "General Weighted Average (GWA)",
       "Good Moral Character",
@@ -490,7 +490,7 @@ BUILDINGS
 - Salceda Building (First Floor, Second Floor)
 - Center for Computer and Engineering Studies (Salceda Building 2, First and Second Floor)
 - Nursing Department
-- Electrical Technology Department (First and Second Floor)
+- Electronics Technology Building (located in CESD Building, First and Second Floor)
 - Administration Building (First and Second Floor)
 - Gymnasium / BUP Gym
 - Center for Student Services
@@ -585,7 +585,7 @@ Administration Building - Administrative Office / Accounting Office
 - Preparation of financial statements
 
 Cashier Fee References (Supplemental)
-- Certification (COG, Good Moral, Bonafide Student, Enrollment, OR): PHP 20.00
+- Certification (Certificate of Grade/COG, Good Moral, Bonafide Student, Enrollment, OR): PHP 20.00
 - Authentication (COR, COG, OR, ID): PHP 10.00
 - COR Reprinting: PHP 20.00
 - Completion Form: PHP 20.00
@@ -619,12 +619,35 @@ export function getServiceById(id: string): ServiceInfo | undefined {
  */
 export function searchServices(query: string): ServiceInfo[] {
   const normalizedQuery = query.toLowerCase();
+  const expandedQueries = new Set([normalizedQuery]);
+
+  if (normalizedQuery === "cog") {
+    expandedQueries.add("certificate of grade");
+    expandedQueries.add("certification of grades");
+  }
+
+  if (
+    normalizedQuery.includes("certificate of grade") ||
+    normalizedQuery.includes("certification of grades")
+  ) {
+    expandedQueries.add("cog");
+  }
+
   return CAMPUS_SERVICES_DATABASE.filter((service) => {
-    const nameMatch = service.name.toLowerCase().includes(normalizedQuery);
-    const descriptionMatch = service.description.toLowerCase().includes(normalizedQuery);
-    const officeMatch = service.office?.toLowerCase().includes(normalizedQuery);
-    const detailsMatch = service.details?.some((detail) => detail.toLowerCase().includes(normalizedQuery));
-    return nameMatch || descriptionMatch || officeMatch || detailsMatch;
+    const searchableText = [
+      service.name,
+      service.description,
+      service.office ?? "",
+      ...(service.details ?? []),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    const queryMatch = Array.from(expandedQueries).some((term) =>
+      searchableText.includes(term),
+    );
+
+    return queryMatch;
   });
 }
 

@@ -445,6 +445,34 @@ function App() {
       return null;
     }
 
+    const normalizedDestination = normalizeText(trimmedDestination);
+    const isCogDestination =
+      normalizedDestination === "cog" ||
+      normalizedDestination.includes("certificate of grade") ||
+      normalizedDestination.includes("certification of grades");
+    if (isCogDestination) {
+      return (
+        PRESET_DESTINATIONS.find(
+          (dest) => normalizeText(dest.label) === "registrar",
+        ) ?? null
+      );
+    }
+
+    const isElectronicsTechDestination =
+      normalizedDestination === "etd" ||
+      normalizedDestination.includes("electronics technology") ||
+      normalizedDestination.includes("electronics technology building") ||
+      normalizedDestination.includes("electronics technology department") ||
+      (normalizedDestination.includes("electronics") &&
+        normalizedDestination.includes("technology"));
+    if (isElectronicsTechDestination) {
+      return (
+        PRESET_DESTINATIONS.find(
+          (dest) => normalizeText(dest.label) === "cesd building",
+        ) ?? null
+      );
+    }
+
     const exactMatch = PRESET_DESTINATIONS.find(
       (dest) => normalizeText(dest.label) === normalizeText(trimmedDestination),
     );

@@ -53,6 +53,46 @@ function calculateStringSimilarity(source: string, target: string): number {
   return Math.max(0, similarity);
 }
 
+function findDestinationByLabel(
+  destinations: PresetDestination[],
+  label: string,
+): PresetDestination | null {
+  const normalizedLabel = normalizeText(label);
+  return (
+    destinations.find(
+      (destination) => normalizeText(destination.label) === normalizedLabel,
+    ) ?? null
+  );
+}
+
+function resolveAliasDestination(
+  normalizedPrompt: string,
+  destinations: PresetDestination[],
+): PresetDestination | null {
+  const isCogPrompt =
+    normalizedPrompt === "cog" ||
+    normalizedPrompt.includes("certificate of grade") ||
+    normalizedPrompt.includes("certification of grades");
+
+  if (isCogPrompt) {
+    return findDestinationByLabel(destinations, "Registrar");
+  }
+
+  const isElectronicsTechnologyPrompt =
+    normalizedPrompt === "etd" ||
+    normalizedPrompt.includes("electronics technology") ||
+    normalizedPrompt.includes("electronics technology building") ||
+    normalizedPrompt.includes("electronics technology department") ||
+    (normalizedPrompt.includes("electronics") &&
+      normalizedPrompt.includes("technology"));
+
+  if (isElectronicsTechnologyPrompt) {
+    return findDestinationByLabel(destinations, "CESD Building");
+  }
+
+  return null;
+}
+
 export function resolvePresetFromPrompt(
   prompt: string,
   destinations: PresetDestination[],
@@ -64,6 +104,14 @@ export function resolvePresetFromPrompt(
   if (!normalizedPrompt) {
     console.log("[Voice Parsing] Empty normalized prompt");
     return null;
+  }
+
+  const aliasDestination = resolveAliasDestination(normalizedPrompt, destinations);
+  if (aliasDestination) {
+    console.log(
+      `[Voice Parsing] Alias redirect matched: "${normalizedPrompt}" -> "${aliasDestination.label}"`,
+    );
+    return aliasDestination;
   }
 
   const promptTokens = normalizedPrompt

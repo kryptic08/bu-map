@@ -183,10 +183,11 @@ CRITICAL NAVIGATION RULES:
 - When user asks where a specific room, office, or facility is located, treat it as a navigation request and include an action to the correct building destination.
 - When user asks for "library", "librarian", or library-related rooms → navigate to "Salceda Building" (library is on 2nd floor)
 - When user asks for "ID", "university ID", "identification card", "ID reprint", "lost ID", "defaced ID", "mutilated ID", "faded ID", or "CSAC" → navigate to "Salceda Building" (CSAC office is located in Salceda Building)
-- When user asks for ECB rooms (ECB 12-19, ECB 201-204, CL1-CL6, computer labs) → navigate to "Salceda Building 2 (Computer & Engineering)"
+- When user asks for ECB rooms (ECB 12-19, ECB 201-204, CL1-CL6, computer labs) → navigate to "CESD Building"
+- When user asks for "Electronics Technology", "Electronics Technology Building", "Electronics Technology Department", or "ETD" → navigate to "CESD Building"
 - When user asks for "gym", "sports", "fitness" → navigate to "BUP GYM"
 - When user asks for "nursing" related rooms → navigate to "Nursing Department"
-- When user asks for "registrar", "enrollment", "transcript", "academic records" → navigate to "Registrar"
+- When user asks for "registrar", "enrollment", "transcript", "academic records", "COG", or "Certificate of Grade" → navigate to "Registrar"
 - When user asks for "cashier", "payment", "fees" → navigate to "Administration Building"
 - When user asks for "health", "medical", "dental", "clinic" → navigate to "Medical and Dental Clinic Bicol Univerity Health Services"
 - If request contains both "ID" and "payment/fee", prioritize ID issuance/reprint at CSAC and navigate to "Salceda Building" unless user explicitly asks for cashier payment window.

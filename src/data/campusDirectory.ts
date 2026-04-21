@@ -120,8 +120,9 @@ export const CAMPUS_BUILDINGS: BuildingInfo[] = [
   },
   {
     code: "ETD",
-    name: "Electronical Technology Department",
-    aliases: ["electronics", "electronic tech", "etd", "technology department", "electrical technology"],
+    name: "Electronics Technology Building",
+    fullName: "Electronics Technology Building (located in CESD Building)",
+    aliases: ["electronics", "electronic tech", "electronics technology", "electronics technology building", "electronics technology department", "etd", "technology department", "electrical technology", "cesd building"],
     rooms: [
       // First Floor
       { code: "STOR-1", name: "Storage Room", floor: 1, aliases: ["storage", "storage 1"] },
